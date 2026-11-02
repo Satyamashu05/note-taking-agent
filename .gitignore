@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Extension signing key and packed builds
+*.pem
+*.crx
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Pipeline outputs (generated per video)
+output/
+work/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
