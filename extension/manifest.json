@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Video Note Taker",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtu0U6lnMTwa1qti8bTkbAAW/hJfGSFydnlI+UNtkyfE25CEx99EbMhxi4qtDfILTHx2Mb7/WOa0F25zzOOMdOeN1bFyZf6sYwWPSb92eCVhGxl/tqJJGs8LRMyQAziigsZFDmdjF73JjjEvVIMD/Q8/622D+W0ZPXaYQcQFu/NDGF93vNnKcqkCz7w772j71hEdvhsOQZpCsBpwbio/jVUFpRGiIB9bUso4zmQ3SnyqynGwDGZl1sjjY2meTEhMRpDTceqaIlioQgiSkrDWnXOX94EvtqPecTOcUnjCKLGhE3ZJtvaUO9B/mCVPvaSRMlg2fRr3fmTxamfy/N9u+LwIDAQAB",
+  "permissions": ["identity", "storage"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Connect Notion" }
+}
