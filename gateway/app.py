@@ -97,7 +97,9 @@ def job_status(job_id: str):
     return {"job_id": job_id, "status": job["status"], "progress": job["progress"],
             "video_id": job["video_id"], "video_title": job["video_title"],
             "duration_sec": job["duration_sec"], "warnings": job["warnings"],
-            "error": job["error"], "result": job["result"]}
+            "error": job["error"], "result": job["result"],
+            "retry_at": job["retry_at"], "last_error": job["last_error"]}
+
 
 @app.get("/jobs/{job_id}/results")
 def job_results(job_id: str):

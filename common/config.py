@@ -6,3 +6,4 @@ NOTION_CLIENT_ID = os.environ["NOTION_CLIENT_ID"]
 NOTION_CLIENT_SECRET = os.environ["NOTION_CLIENT_SECRET"]
 MAX_ATTEMPTS = int(os.environ["MAX_ATTEMPTS"])
 BACKOFF_SECONDS = [int(s) for s in os.environ["BACKOFF_SECONDS"].split(",")]
+DATA_DIR = os.environ["DATA_DIR"]
