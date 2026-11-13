@@ -25,36 +25,40 @@ def handle(body):
         return
     stop = threading.Event()
     threading.Thread(target=keep_lock, args=(job_id, stop), daemon=True).start()
+    should_hand_off = False
     try:
         job = jobs.get(job_id)
         if job is None or job["status"] in jobs.TERMINAL:
             log(job_id, f"{stage}: job is finished or unknown, dropping message")
         else:
-            run(msg, job)
+            should_hand_off = run(msg, job)
     finally:
         stop.set()
         jobs.release_lock(job_id, WORKER_ID)
+    if should_hand_off:
+        hand_off(msg)
+
 
 def keep_lock(job_id, stop):
     while not stop.wait(LOCK_TTL / 3):
         jobs.renew_lock(job_id, WORKER_ID, LOCK_TTL)
 
 def run(msg, job):
+    """Run one stage. Returns True when the job should move to the next stage."""
     job_id, stage = msg["job_id"], msg["stage"]
     if jobs.is_done(job_id, stage):
         if job["status"] in jobs.STAGES and \
                 jobs.STAGES.index(job["status"]) > jobs.STAGES.index(stage):
             log(job_id, f"{stage}: duplicate message, next stage already started")
-        else:
-            log(job_id, f"{stage}: already done, handing off again")
-            hand_off(msg)
-        return
+            return False
+        log(job_id, f"{stage}: already done, handing off again")
+        return True
 
     attempt = jobs.next_attempt(job_id, stage)
     if attempt > config.MAX_ATTEMPTS:
         dead_letter(msg, job["last_error"] or
                     {"code": "RETRIES_EXHAUSTED", "message": f"{stage} kept failing"})
-        return
+        return False
     jobs.update(job_id, status=stage, retry_at="")
     log(job_id, f"{stage}: attempt {attempt}")
     try:
@@ -63,13 +67,14 @@ def run(msg, job):
     except FatalError as e:
         log(job_id, f"{stage}: failed: {e}")
         jobs.update(job_id, status="FAILED", error={"code": e.code, "message": str(e)})
-        return
+        return False
     except Exception as e:
         retry_later(msg, attempt, e)
-        return
+        return False
     jobs.update(job_id, **{**updates, f"done:{stage}": 1})
     log(job_id, f"{stage}: done")
-    hand_off(msg)
+    return True
+
 
 def hand_off(msg):
     i = jobs.STAGES.index(msg["stage"])

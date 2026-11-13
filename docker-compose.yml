@@ -29,6 +29,7 @@ services:
   worker:
     build: .
     command: python -m worker.main
+    init: true
     env_file: .env
     volumes: [jobdata:/data]
     deploy: {replicas: 2}
