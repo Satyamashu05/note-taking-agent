@@ -6,6 +6,7 @@ from common import config
 
 from pipeline.transcript import get_transcript
 from pipeline.video_info import get_video_info
+from pipeline.summarize import summarize as summarize_transcript
 
 
 FAKE_SECONDS = int(os.environ.get("FAKE_STAGE_SECONDS", "5"))
@@ -42,8 +43,14 @@ def transcribe(msg):
 
 
 def summarize(msg):
-    _fake("SUMMARIZING", msg)
+    d = job_dir(msg["job_id"])
+    notes_path = d / "notes.json"
+    if not notes_path.exists():                       # don't spend LLM quota twice after a crash
+        info = json.loads((d / "info.json").read_text())
+        notes = summarize_transcript((d / "transcript.txt").read_text(), info["title"], info["duration"])
+        save_json(notes_path, notes)
     return {}
+
 
 def extract_frames(msg):
     _fake("EXTRACTING_FRAMES", msg)

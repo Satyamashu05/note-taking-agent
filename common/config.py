@@ -7,3 +7,6 @@ NOTION_CLIENT_SECRET = os.environ["NOTION_CLIENT_SECRET"]
 MAX_ATTEMPTS = int(os.environ["MAX_ATTEMPTS"])
 BACKOFF_SECONDS = [int(s) for s in os.environ["BACKOFF_SECONDS"].split(",")]
 DATA_DIR = os.environ["DATA_DIR"]
+LLM_MODEL = os.environ["LLM_MODEL"]
+LLM_RPM = int(os.environ["LLM_RPM"])
+LLM_MAX_CHARS = int(os.environ.get("LLM_MAX_CHARS", "60000"))
