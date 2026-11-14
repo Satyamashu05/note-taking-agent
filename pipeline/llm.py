@@ -24,6 +24,16 @@ def _retry_delay(e):
         pass
     return None
 
+def _quota_name(e):
+    try:
+        for d in e.details["error"]["details"]:
+            if d.get("@type", "").endswith("QuotaFailure"):
+                return d["violations"][0].get("quotaId", "")
+    except (KeyError, TypeError, IndexError, AttributeError):
+        pass
+    return ""
+
+
 def call_llm(contents, system, schema):
     wait_for_llm_slot()
     try:
@@ -42,7 +52,8 @@ def call_llm(contents, system, schema):
             raise FatalError("LLM_MODEL_NOT_FOUND", f"Gemini model {config.LLM_MODEL} does not exist")
         raise RetryableError("LLM_REQUEST_FAILED", f"Gemini error {e.code}: {e.message}")
     except errors.ServerError as e:
-        raise RetryableError("LLM_UNAVAILABLE", f"Gemini is unavailable ({e.code})")
+        raise RetryableError("LLM_RATE_LIMITED", f"Gemini rate limit reached {_quota_name(e)}".strip(),
+                retry_after=_retry_delay(e))
     try:
         return json.loads(response.text)
     except (TypeError, ValueError):

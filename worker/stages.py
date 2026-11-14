@@ -9,6 +9,7 @@ from pipeline.video_info import get_video_info
 from pipeline.summarize import summarize as summarize_transcript
 from pipeline.frames import capture_frames
 from pipeline.verify import verify_frames
+from pipeline.notion import publish_page
 
 
 FAKE_SECONDS = int(os.environ.get("FAKE_STAGE_SECONDS", "5"))
@@ -75,10 +76,22 @@ def extract_frames(msg):
 
 
 def publish(msg):
-    _fake("PUBLISHING", msg)
-    return {"status": "COMPLETED",
-            "result": {"notion_page_url": "https://www.notion.so/fake-page",
-                       "frames_requested": 0, "frames_published": 0}}
+    d = job_dir(msg["job_id"])
+    done_path = d / "published.json"
+    if not done_path.exists():
+        info = json.loads((d / "info.json").read_text())
+        notes = json.loads((d / "notes.json").read_text())
+        frames = json.loads((d / "frames.json").read_text())
+        result = publish_page(msg, info, notes, frames["frames"], frames["warnings"], d)
+        result["frames_requested"] = len(notes["key_frames"])
+        result["warnings"] = frames["warnings"]
+        save_json(done_path, result)
+    r = json.loads(done_path.read_text())
+    complete = not r["warnings"] and r["frames_published"] == r["frames_requested"]
+    return {"status": "COMPLETED" if complete else "COMPLETED_WITH_WARNINGS",
+            "warnings": r["warnings"],
+            "result": {"notion_page_url": r["url"], "frames_requested": r["frames_requested"],
+                       "frames_published": r["frames_published"]}}
 
 RUNNERS = {"TRANSCRIBING": transcribe, "SUMMARIZING": summarize,
            "EXTRACTING_FRAMES": extract_frames, "PUBLISHING": publish}
