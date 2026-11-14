@@ -41,6 +41,11 @@ async def validation_error(request, exc):
 async def http_error(request, exc):
     return error(exc.status_code, "HTTP_ERROR", str(exc.detail))
 
+@app.exception_handler(redis.RedisError)
+async def redis_error(request, exc):
+    return error(503, "STATE_STORE_UNAVAILABLE", "Job store is busy, try again shortly")
+
+
 def parse_video_id(url):
     u = urlparse(url.strip())
     if u.scheme not in ("http", "https"):
