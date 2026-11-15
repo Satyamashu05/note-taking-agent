@@ -10,3 +10,5 @@ DATA_DIR = os.environ["DATA_DIR"]
 LLM_MODEL = os.environ["LLM_MODEL"]
 LLM_RPM = int(os.environ["LLM_RPM"])
 LLM_MAX_CHARS = int(os.environ.get("LLM_MAX_CHARS", "60000"))
+LLM_CHECK_MODEL = os.environ.get("LLM_CHECK_MODEL") or LLM_MODEL
+LLM_CHECK_RPM = int(os.environ.get("LLM_CHECK_RPM") or LLM_RPM)

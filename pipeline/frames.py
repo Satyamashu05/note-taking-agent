@@ -35,7 +35,7 @@ def grab_frame(stream_url, headers, t, out, tries=2):
            "-i", stream_url, "-frames:v", "1", "-q:v", "2", str(tmp)]
     for _ in range(tries):
         try:
-            r = subprocess.run(cmd, capture_output=True, timeout=60)
+            r = subprocess.run(cmd, capture_output=True, timeout=30)
             if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
                 os.replace(tmp, out)
                 return True
@@ -56,7 +56,7 @@ def capture_frames(youtube_url, key_frames, duration, outdir, fail_first=0):
         out = outdir / f"frame_{ts:05d}.jpg"
         return task, out, i >= fail_first and grab_frame(stream_url, headers, ts, out)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(work, tasks))
 
     candidates = {}

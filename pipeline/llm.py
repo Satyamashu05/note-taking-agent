@@ -33,27 +33,27 @@ def _quota_name(e):
         pass
     return ""
 
-
-def call_llm(contents, system, schema):
-    wait_for_llm_slot()
+def call_llm(contents, system, schema, model=None, rpm=None):
+    model = model or config.LLM_MODEL
+    wait_for_llm_slot(model, rpm or config.LLM_RPM)
     try:
         response = _get_client().models.generate_content(
-            model=config.LLM_MODEL, contents=contents,
+            model=model, contents=contents,
             config=types.GenerateContentConfig(system_instruction=system,
                                                response_mime_type="application/json",
                                                response_json_schema=schema))
     except errors.ClientError as e:
         if e.code == 429:
-            raise RetryableError("LLM_RATE_LIMITED", "Gemini rate limit reached",
+            raise RetryableError("LLM_RATE_LIMITED",
+                                 f"Gemini rate limit reached on {model} {_quota_name(e)}".strip(),
                                  retry_after=_retry_delay(e))
         if e.code in (401, 403):
             raise FatalError("LLM_AUTH_FAILED", "Gemini rejected the API key")
         if e.code == 404:
-            raise FatalError("LLM_MODEL_NOT_FOUND", f"Gemini model {config.LLM_MODEL} does not exist")
+            raise FatalError("LLM_MODEL_NOT_FOUND", f"Gemini model {model} does not exist")
         raise RetryableError("LLM_REQUEST_FAILED", f"Gemini error {e.code}: {e.message}")
     except errors.ServerError as e:
-        raise RetryableError("LLM_RATE_LIMITED", f"Gemini rate limit reached {_quota_name(e)}".strip(),
-                retry_after=_retry_delay(e))
+        raise RetryableError("LLM_UNAVAILABLE", f"Gemini is unavailable ({e.code})")
     try:
         return json.loads(response.text)
     except (TypeError, ValueError):

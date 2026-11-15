@@ -1,6 +1,7 @@
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 
 TERMINAL = {"COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "DEAD_LETTERED"}
@@ -8,8 +9,13 @@ TERMINAL = {"COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "DEAD_LETTERED"}
 job_id = sys.argv[1]
 start, last = time.time(), None
 while True:
-    with urllib.request.urlopen(f"http://localhost:8000/jobs/{job_id}") as resp:
-        job = json.load(resp)
+    try:
+        with urllib.request.urlopen(f"http://localhost:8000/jobs/{job_id}", timeout=5) as resp:
+            job = json.load(resp)
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        print(f"[{time.time() - start:6.1f}s] poll failed ({e}), retrying", flush=True)
+        time.sleep(1)
+        continue
     state = (job["status"], job.get("retry_at"))
     if state != last:
         line = f"[{time.time() - start:6.1f}s] {job['status']} {job['progress']}%"

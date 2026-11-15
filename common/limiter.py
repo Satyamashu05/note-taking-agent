@@ -12,8 +12,8 @@ redis.call('SET', KEYS[1], tostring(slot), 'EX', 3600)
 return tostring(slot - now)
 """)
 
-def wait_for_llm_slot():
-    wait = float(_RESERVE(keys=["llm:next_slot"], args=[60 / config.LLM_RPM]))
+def wait_for_llm_slot(model, rpm):
+    wait = float(_RESERVE(keys=[f"llm:next_slot:{model}"], args=[60 / rpm]))
     if wait > 0.5:
-        print(f"LLM rate limiter: waiting {wait:.1f}s for a free slot")
+        print(f"LLM rate limiter ({model}): waiting {wait:.1f}s for a free slot")
     time.sleep(max(wait, 0))

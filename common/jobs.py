@@ -2,10 +2,19 @@ import json
 import time
 
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from redis.retry import Retry
 
 from common import config
 
-r = redis.Redis.from_url(config.REDIS_URL, decode_responses=True)
+r = redis.Redis.from_url(
+    config.REDIS_URL, decode_responses=True,
+    socket_timeout=5, socket_connect_timeout=5, health_check_interval=30,
+    retry=Retry(ExponentialBackoff(cap=2, base=0.1), 6),
+    retry_on_error=[RedisConnectionError, RedisTimeoutError])
+
 
 STAGES = ["TRANSCRIBING", "SUMMARIZING", "EXTRACTING_FRAMES", "PUBLISHING"]
 TERMINAL = {"COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "DEAD_LETTERED"}

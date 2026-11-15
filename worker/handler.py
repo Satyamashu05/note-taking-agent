@@ -34,14 +34,22 @@ def handle(body):
             should_hand_off = run(msg, job)
     finally:
         stop.set()
-        jobs.release_lock(job_id, WORKER_ID)
+        try:
+            jobs.release_lock(job_id, WORKER_ID)
+        except Exception as e:
+            log(job_id, f"could not release lock (it will expire by itself): {e!r}")
+
     if should_hand_off:
         hand_off(msg)
 
 
 def keep_lock(job_id, stop):
     while not stop.wait(LOCK_TTL / 3):
-        jobs.renew_lock(job_id, WORKER_ID, LOCK_TTL)
+        try:
+            jobs.renew_lock(job_id, WORKER_ID, LOCK_TTL)
+        except Exception as e:
+            log(job_id, f"could not renew lock: {e!r}")
+
 
 def run(msg, job):
     """Run one stage. Returns True when the job should move to the next stage."""
@@ -61,6 +69,7 @@ def run(msg, job):
         return False
     jobs.update(job_id, status=stage, retry_at="")
     log(job_id, f"{stage}: attempt {attempt}")
+    started = time.time()
     try:
         inject_fault(stage, attempt)
         updates = stages.RUNNERS[stage](msg)
@@ -72,8 +81,9 @@ def run(msg, job):
         retry_later(msg, attempt, e)
         return False
     jobs.update(job_id, **{**updates, f"done:{stage}": 1})
-    log(job_id, f"{stage}: done")
+    log(job_id, f"{stage}: done in {time.time() - started:.1f}s")
     return True
+
 
 
 def hand_off(msg):

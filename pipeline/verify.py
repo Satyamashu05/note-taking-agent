@@ -1,6 +1,7 @@
 from google.genai import types
 
 from pipeline.llm import call_llm
+from common import config
 
 SYSTEM = """You check video frames for study notes. For each moment you get the caption that was
 planned from the transcript and up to two candidate frames: A at the planned time, B a few
@@ -36,7 +37,9 @@ def verify_frames(moments, outdir):
             contents.append(f"Moment {i}, candidate {label}:")
             contents.append(types.Part.from_bytes(data=(outdir / c["file"]).read_bytes(),
                                                   mime_type="image/jpeg"))
-    answers = {a["index"]: a for a in call_llm(contents, SYSTEM, SCHEMA).get("moments", [])}
+    answers = {a["index"]: a for a in call_llm(contents, SYSTEM, SCHEMA, model=config.LLM_CHECK_MODEL,
+                rpm=config.LLM_CHECK_RPM).get("moments", [])}
+
 
     frames, rejected = [], []
     for i, m in enumerate(moments):

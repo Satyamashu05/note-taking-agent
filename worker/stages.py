@@ -1,6 +1,5 @@
 import json
 import os
-import time
 from pathlib import Path
 from common import config
 
@@ -11,8 +10,6 @@ from pipeline.frames import capture_frames
 from pipeline.verify import verify_frames
 from pipeline.notion import publish_page
 
-
-FAKE_SECONDS = int(os.environ.get("FAKE_STAGE_SECONDS", "5"))
 
 def job_dir(job_id):
     d = Path(config.DATA_DIR) / job_id
@@ -28,11 +25,6 @@ def save_text(path, text):
     tmp = path.with_suffix(".tmp")
     tmp.write_text(text)
     os.replace(tmp, path)
-
-
-def _fake(stage, msg):
-    time.sleep(FAKE_SECONDS)
-    save_json(job_dir(msg["job_id"]) / f"{stage.lower()}.json", {"stage": stage, "fake": True})
 
 def transcribe(msg):
     d = job_dir(msg["job_id"])
