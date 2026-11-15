@@ -117,6 +117,10 @@ def job_results(job_id: str):
     return {"status": job["status"], "result": job["result"],
             "warnings": job["warnings"], "error": job["error"]}
 
+@app.get("/oauth/notion/config")
+def notion_config():
+    return {"client_id": config.NOTION_CLIENT_ID}
+
 @app.post("/oauth/notion/exchange")
 def notion_exchange(req: OAuthExchange):
     try:
