@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import yt_dlp
 from yt_dlp.utils import DownloadError
+from common.errors import RetryableError
 
 # Prefer H.264 at ≤720p (fast to decode everywhere), else any video stream ≤720p.
 FORMAT = "bv*[height<=720][vcodec^=avc1]/bv*[height<=720]/b[height<=720]/b"
@@ -22,8 +23,11 @@ def get_stream(youtube_url, tries=3):
         except (DownloadError, KeyError) as e:
             last = e
             time.sleep(5 * (i + 1))
+    if any(s in str(last) for s in ("429", "Too Many Requests", "not a bot")):
+        raise RetryableError("YOUTUBE_RATE_LIMITED", "YouTube is limiting requests from this server")
     print(f"could not get video stream: {last}")
     return None, None
+
 
 def grab_frame(stream_url, headers, t, out, tries=2):
     if out.exists() and out.stat().st_size > 0:      # already captured by an earlier attempt
