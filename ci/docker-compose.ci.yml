@@ -11,3 +11,7 @@ services:
   worker:
     image: note-agent:${IMAGE_TAG}
     env_file: !override .env.example
+  autoscaler:
+    image: note-agent:${IMAGE_TAG}
+    env_file: !override .env.example
+

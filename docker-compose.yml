@@ -26,6 +26,7 @@ services:
     depends_on: &deps
       rabbitmq: {condition: service_healthy}
       redis: {condition: service_healthy}
+  
   worker:
     build: .
     command: python -m worker.main
@@ -35,5 +36,14 @@ services:
     deploy: {replicas: 2}
     restart: unless-stopped
     depends_on: *deps
+  
+  autoscaler:
+    build: .
+    command: python -m autoscaler.main
+    env_file: .env
+    volumes: [/var/run/docker.sock:/var/run/docker.sock]
+    restart: unless-stopped
+    depends_on: *deps
+
 
 volumes: {rabbit: {}, redis: {}, jobdata: {}}
