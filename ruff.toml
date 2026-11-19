@@ -1,0 +1,4 @@
+# Lint rules enforced by the Jenkins pipeline: syntax errors and pyflakes
+# (undefined names, unused imports/variables). Style rules are deliberately left out.
+[lint]
+select = ["E9", "F"]

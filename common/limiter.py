@@ -1,6 +1,5 @@
 import time
 
-from common import config
 from common.jobs import r
 
 # Atomically reserve the next free call slot, spaced 60/LLM_RPM seconds apart.

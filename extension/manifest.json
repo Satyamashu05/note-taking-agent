@@ -7,7 +7,7 @@
   "permissions": ["identity", "storage", "alarms"],
   "host_permissions": ["http://localhost:8000/*"],
   "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Video Note Taker" },
+  "action": { "default_title": "Video Note Taker", "default_popup": "popup.html" },
   "content_scripts": [{
     "matches": ["https://www.youtube.com/*"],
     "js": ["content.js"],

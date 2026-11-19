@@ -1,0 +1,13 @@
+# Overrides for the Jenkins smoke test (layered on top of docker-compose.yml).
+# Reuses the image Jenkins just built, reads the placeholder .env.example instead of real
+# secrets, and publishes no host ports so it can run next to the deployed stack.
+services:
+  rabbitmq:
+    ports: !reset []
+  gateway:
+    image: note-agent:${IMAGE_TAG}
+    env_file: !override .env.example
+    ports: !reset []
+  worker:
+    image: note-agent:${IMAGE_TAG}
+    env_file: !override .env.example

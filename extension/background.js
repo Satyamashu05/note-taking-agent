@@ -92,13 +92,15 @@ async function refreshJobs() {
     try {
       const s = await api("GET", `/jobs/${job.job_id}`);
       updates[job.job_id] = {
+        stage: TERMINAL.has(s.status) ? job.status : s.status,
         status: s.status, progress: s.progress, title: s.video_title || job.title,
         retry_at: s.retry_at, last_error: s.last_error, error: s.error,
         warnings: s.warnings, result: s.result, unreachable: false,
       };
+
     } catch (e) {
       updates[job.job_id] = e.code === "JOB_NOT_FOUND"
-        ? { status: "FAILED", error: { code: e.code, message: "The server no longer knows this job." } }
+        ? { stage: job.status, status: "FAILED", error: { code: e.code, message: "The server no longer knows this job." } }
         : { unreachable: true };
     }
   }
