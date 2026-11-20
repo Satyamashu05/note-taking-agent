@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Ops · Note-Taking Agent</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --text:#e6e8ee; --muted:#8a93a6;
+          --blue:#4c8dff; --green:#2fbf71; --amber:#f0a500; --red:#ef4b4b; --purple:#a77bf3; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:12px; padding:16px 24px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; font-weight:600; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+       margin:0 0 10px; font-weight:600; }
+  .live { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; margin-left:auto; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--green); }
+  .dot.stale { background:var(--red); }
+  main { padding:20px 16px; display:grid; gap:16px; max-width:1400px; margin:0 auto; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .tile, .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+  .tile { padding:14px 16px; }
+  .tile .n { font-size:30px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .tile .l { color:var(--muted); font-size:12px; }
+  .panel { padding:16px; min-width:0; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:900px) { .cols { grid-template-columns:1fr; } }
+  .pipeline { display:flex; flex-wrap:wrap; gap:8px; }
+  .stage { flex:1 1 110px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  .stage .n { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .stage .l { font-size:11px; color:var(--muted); }
+  .workers { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
+  .worker { border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .worker.busy { border-color:var(--blue); }
+  .worker.new { animation:flash 1s; }
+  @keyframes flash { from { background:rgba(47,191,113,.3); } to { background:transparent; } }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+  .muted { color:var(--muted); }
+  .small { font-size:12px; }
+  .feed { max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:4px; }
+  .ev { font-size:13px; }
+  .ev time { color:var(--muted); margin-right:8px; font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px;
+           font-weight:600; border:1px solid currentColor; white-space:nowrap; }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; width:100px; }
+  .bar i { display:block; height:100%; background:var(--blue); transition:width .5s; }
+  a { color:var(--blue); }
+  .c-QUEUED { color:var(--muted); }
+  .c-TRANSCRIBING, .c-SUMMARIZING, .c-EXTRACTING_FRAMES, .c-PUBLISHING { color:var(--blue); }
+  .c-COMPLETED { color:var(--green); }
+  .c-COMPLETED_WITH_WARNINGS, .c-WAITING { color:var(--amber); }
+  .c-FAILED { color:var(--red); }
+  .c-DEAD_LETTERED { color:var(--purple); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Note-Taking Agent · Live Ops</h1>
+  <div class="live"><span class="dot" id="dot"></span><span id="updated">connecting…</span></div>
+</header>
+<main>
+  <section class="tiles">
+    <div class="tile"><div class="n" id="t-workers">–</div><div class="l" id="t-workers-l">workers online</div></div>
+    <div class="tile"><div class="n" id="t-ready">–</div><div class="l">messages waiting in queue</div></div>
+    <div class="tile"><div class="n" id="t-busy">–</div><div class="l">being processed</div></div>
+    <div class="tile"><div class="n c-WAITING" id="t-retry">–</div><div class="l">waiting to retry (backoff)</div></div>
+    <div class="tile"><div class="n c-DEAD_LETTERED" id="t-dlq">–</div><div class="l">in dead-letter queue</div></div>
+  </section>
+
+  <section class="panel"><h2>Jobs by status</h2><div class="pipeline" id="pipeline"></div></section>
+
+  <div class="cols">
+    <section class="panel"><h2>Workers</h2><div class="workers" id="workers"></div></section>
+    <section class="panel"><h2>Events</h2><div class="feed" id="feed"></div></section>
+  </div>
+
+  <section class="panel">
+    <h2>Recent jobs</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Job</th><th>Video</th><th>Status</th><th>Progress</th><th>Attempt</th><th>Worker</th><th>Details</th></tr></thead>
+      <tbody id="jobs"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script>
+const ORDER = ["QUEUED", "TRANSCRIBING", "SUMMARIZING", "EXTRACTING_FRAMES", "PUBLISHING",
+               "COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "DEAD_LETTERED"];
+const TERMINAL = new Set(ORDER.slice(5));
+const $ = (id) => document.getElementById(id);
+const set = (id, v) => { $(id).textContent = v; };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const label = (s) => s.replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+const short = (id) => id.slice(0, 8);
+const host = (owner) => (owner || "").split(":")[0];
+
+let prev = null;
+const lastOwner = {};  // job_id -> last worker seen holding it (survives the lock expiring)
+
+function addEvent(html, cls = "") {
+  const el = document.createElement("div");
+  el.className = "ev " + cls;
+  el.innerHTML = `<time>${new Date().toLocaleTimeString()}</time>${html}`;
+  $("feed").prepend(el);
+  while ($("feed").children.length > 100) $("feed").lastChild.remove();
+}
+
+function render(d) {
+  const now = d.now, rb = d.rabbit;
+  const live = new Set(rb ? rb.workers : []);
+  const before = new Set(prev?.rabbit?.workers || []);
+  const q = (name) => (rb && rb.queues[name]) || { ready: 0, in_progress: 0 };
+
+  set("t-workers", rb ? rb.workers.length : "–");
+  set("t-workers-l", `workers online · autoscale ${d.scale.min}–${d.scale.max}`);
+  set("t-ready", rb ? q("jobs").ready : "–");
+  set("t-busy", rb ? q("jobs").in_progress : "–");
+  set("t-retry", d.counts.WAITING_RETRY || 0);
+  set("t-dlq", rb ? q("jobs.dlq").ready : (d.counts.DEAD_LETTERED || 0));
+
+  $("pipeline").innerHTML = ORDER.map((s) =>
+    `<div class="stage"><div class="n c-${s}">${d.counts[s] || 0}</div><div class="l">${label(s)}</div></div>`
+  ).join("");
+
+  $("workers").innerHTML = !rb
+    ? `<div class="muted">RabbitMQ API unreachable: ${esc(d.rabbit_error)}</div>`
+    : rb.workers.map((w) => {
+        const b = d.busy[w];
+        const isNew = prev && !before.has(w);
+        return `<div class="worker ${b ? "busy" : ""} ${isNew ? "new" : ""}">
+          <div class="mono">${esc(w)}</div>
+          <div class="${b ? "c-TRANSCRIBING" : "muted"}">${b ? `job ${short(b.job_id)} · ${label(b.status || "")}` : "idle"}</div>
+          ${b && b.title ? `<div class="muted small">${esc(b.title)}</div>` : ""}
+        </div>`;
+      }).join("") || `<div class="muted">No workers connected</div>`;
+
+  $("jobs").innerHTML = d.jobs.map((j) => {
+    const active = !TERMINAL.has(j.status);
+    const waiting = active && j.retry_at && j.retry_at > now;
+    const orphan = active && j.worker && rb && !live.has(host(j.worker));
+    const badge = waiting ? "WAITING" : j.status;
+    let detail = "";
+    if (waiting) detail = `retry in <b>${Math.ceil(j.retry_at - now)}s</b> · ${esc(j.last_error || "")}`;
+    else if (orphan) detail = `<span class="c-FAILED">worker ${esc(host(j.worker))} died, job will be redelivered</span>`;
+    else if (j.notion_url) detail = `<a href="${esc(j.notion_url)}" target="_blank" rel="noopener">View in Notion ↗</a>`;
+    else if (j.error) detail = `<span class="c-${j.status}">${esc(j.error)}</span>`;
+    if (j.warnings) detail += ` · ${j.warnings} warning${j.warnings > 1 ? "s" : ""}`;
+    return `<tr>
+      <td class="mono">${short(j.job_id)}</td>
+      <td>${esc(j.title)}</td>
+      <td><span class="badge c-${badge}">${label(badge)}</span></td>
+      <td><div class="bar"><i style="width:${j.progress}%"></i></div></td>
+      <td>${j.attempt || "–"}</td>
+      <td class="mono">${esc(host(j.worker)) || "–"}</td>
+      <td>${detail}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="7" class="muted">No jobs yet</td></tr>`;
+}
+
+function diff(d) {
+  const live = new Set(d.rabbit?.workers || []);
+  if (prev) {
+    if (prev.rabbit && d.rabbit) {
+      const before = new Set(prev.rabbit.workers);
+      for (const w of live) if (!before.has(w)) addEvent(`Worker <b class="mono">${esc(w)}</b> joined`, "c-COMPLETED");
+      for (const w of before) if (!live.has(w)) {
+        const b = prev.busy[w];
+        addEvent(`Worker <b class="mono">${esc(w)}</b> left` +
+          (b ? ` while holding job ${short(b.job_id)}; RabbitMQ will redeliver it` : ""), b ? "c-FAILED" : "muted");
+      }
+    }
+    const old = Object.fromEntries(prev.jobs.map((j) => [j.job_id, j]));
+    for (const j of d.jobs) {
+      const o = old[j.job_id], id = `Job <b class="mono">${short(j.job_id)}</b>`;
+      if (!o) { addEvent(`${id} submitted · ${esc(j.title)}`); continue; }
+      if (o.status !== j.status) addEvent(`${id}: ${label(o.status)} → <span class="c-${j.status}">${label(j.status)}</span>`);
+      if (j.retry_at && j.retry_at !== o.retry_at && j.retry_at > d.now)
+        addEvent(`${id}: ${esc(j.last_error || "error")}, retrying in ${Math.round(j.retry_at - d.now)}s (attempt ${j.attempt})`, "c-WAITING");
+    }
+  }
+  for (const j of d.jobs) {
+    const h = host(j.worker), was = lastOwner[j.job_id];
+    if (prev && h && was && was !== h && !live.has(was))
+      addEvent(`Job <b class="mono">${short(j.job_id)}</b> recovered by <b class="mono">${esc(h)}</b> after ${esc(was)} died`, "c-COMPLETED");
+    if (h) lastOwner[j.job_id] = h;
+  }
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/dashboard/data", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    render(d);
+    diff(d);
+    prev = d;
+    $("dot").className = "dot";
+    set("updated", "live · " + new Date().toLocaleTimeString());
+  } catch {
+    $("dot").className = "dot stale";
+    set("updated", "connection lost, retrying…");
+  }
+  setTimeout(tick, 1000);
+}
+tick();
+</script>
+</body>
+</html>

@@ -12,8 +12,10 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from common import broker, config, jobs
+from gateway.dashboard import router as dashboard_router
 
 app = FastAPI()
+app.include_router(dashboard_router)
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 NOTION_ID = re.compile(r"^[0-9a-fA-F]{32}$")

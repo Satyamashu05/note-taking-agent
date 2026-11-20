@@ -1,5 +1,5 @@
 import json
-
+import socket
 import pika
 
 from common import config
@@ -11,6 +11,8 @@ def retry_queue(seconds):
     return f"retry.{seconds}"
 
 def connect():
+    params = pika.URLParameters(config.RABBITMQ_URL)
+    params.client_properties = {"connection_name": socket.gethostname()}
     conn = pika.BlockingConnection(pika.URLParameters(config.RABBITMQ_URL))
     ch = conn.channel()
     ch.confirm_delivery()
