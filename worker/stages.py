@@ -9,7 +9,7 @@ from pipeline.summarize import summarize as summarize_transcript
 from pipeline.frames import capture_frames
 from pipeline.verify import verify_frames
 from pipeline.notion import publish_page
-
+from pipeline.frames import hunt_frames
 
 def job_dir(job_id):
     d = Path(config.DATA_DIR) / job_id
@@ -53,11 +53,18 @@ def extract_frames(msg):
     if not frames_path.exists():
         duration = json.loads((d / "info.json").read_text())["duration"]
         key_frames = json.loads((d / "notes.json").read_text())["key_frames"]
+        shift = int(os.environ.get("FAULT_FRAME_SHIFT") or 0)    # testing: start the agent off-target
+        if shift:
+            key_frames = [{**kf, "timestamp_sec": max(0, kf["timestamp_sec"] - shift)} for kf in key_frames]
         fault = os.environ.get("FAULT_FRAME_FAILURES", "")
         fail_first = len(key_frames) if fault == "all" else int(fault or 0)
         moments, warnings = capture_frames(msg["youtube_url"], key_frames, duration, d, fail_first)
         if moments and os.environ.get("FRAME_CHECK", "on") == "on":
             frames, rejected = verify_frames(moments, d)
+            if rejected and os.environ.get("FRAME_AGENT", "off") == "on":
+                frames, rejected, trace = hunt_frames(msg["youtube_url"], moments, rejected,
+                                                      frames, duration, d)
+                save_json(d / "frame_agent.json", trace)
         else:
             frames, rejected = [{"timestamp_sec": c["timestamp_sec"], "caption": m["caption"],
                                  "reason": m["reason"], "file": c["file"]}
