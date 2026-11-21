@@ -9,7 +9,7 @@ from pipeline.summarize import summarize as summarize_transcript
 from pipeline.frames import capture_frames
 from pipeline.verify import verify_frames
 from pipeline.notion import publish_page
-from pipeline.frames import hunt_frames
+from pipeline.frame_agent import hunt_frames
 
 def job_dir(job_id):
     d = Path(config.DATA_DIR) / job_id
