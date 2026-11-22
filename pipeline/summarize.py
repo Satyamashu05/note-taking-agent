@@ -37,10 +37,12 @@ SYSTEM = """You turn lecture and tutorial transcripts into study notes, written 
 Each transcript line starts with [Ns] = seconds from the start of the video.
 1. Split the content into sections, in order. For each: a heading, its start time in seconds,
    and concise study-note bullets (definitions, formulas, steps, key facts).
-2. Pick up to 8 key_frames: moments when something important is likely on screen - a diagram,
-   slide, equation, code or chart. Use speech cues such as "as you can see", "this diagram",
-   "on this slide", "let me draw". For each: timestamp_sec, caption (what is shown) and
-   reason (why it matters for the notes). If nothing visual is referenced, return an empty list.
+2. Pick 3 to 8 key_frames, spread across the video: moments when a key idea, step, list,
+   comparison or number is explained, as these often have a graphic on screen even if the
+   speaker never mentions it. Prefer moments with cues such as "as you can see", "this diagram"
+   or "on this slide". A separate check looks at the images and drops useless ones, so do not
+   return an empty list just because nothing visual is mentioned. For each: timestamp_sec,
+   caption (what is likely shown) and reason (why it matters for the notes).
 Use only information from the transcript."""
 
 def _chunks(transcript, max_chars):
