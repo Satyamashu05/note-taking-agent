@@ -27,7 +27,7 @@ COMPAT = {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": "GROQ_API_KEY",
         "text_model": os.environ.get("GROQ_TEXT_MODEL", "openai/gpt-oss-120b"),
-        "vision_model": os.environ.get("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+        "vision_model": os.environ.get("GROQ_VISION_MODEL", "qwen/qwen3.8-27b"),
         "max_images": 5,
         "rpm": int(os.environ.get("GROQ_RPM", "30")),
         "format": "json_schema",
@@ -231,7 +231,7 @@ def _count_images(contents):
 
 
 def _parse_json(text):
-    text = (text or "").strip()
+    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()   # reasoning models
     fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
     if fenced:
         text = fenced.group(1).strip()
