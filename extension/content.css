@@ -15,3 +15,38 @@
   font: 14px/1.4 Roboto, Arial, sans-serif; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .vnt-toast.vnt-error { background: #b3261e; }
+
+/* "Take notes" dialog: asks for optional custom instructions */
+.vnt-overlay {
+  position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center;
+  justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.6);
+  font: 14px/1.45 Roboto, Arial, sans-serif;
+}
+.vnt-modal {
+  width: min(520px, 100%); background: #212121; color: #f1f1f1; border-radius: 12px;
+  padding: 20px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.vnt-modal h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+.vnt-hint { margin: 0 0 12px; color: #aaa; font-size: 13px; }
+.vnt-input {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px; padding: 10px;
+  border: 1px solid #3f3f3f; border-radius: 8px; background: #121212; color: #f1f1f1;
+  font: inherit; outline: none;
+}
+.vnt-input:focus { border-color: #3ea6ff; }
+.vnt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+.vnt-chip {
+  border: 1px solid #3f3f3f; border-radius: 999px; background: transparent; color: #ddd;
+  padding: 4px 10px; font: 12px Roboto, Arial, sans-serif; cursor: pointer;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vnt-chip:hover { background: #303030; }
+.vnt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: flex-end; }
+.vnt-count { margin-right: auto; color: #888; font-size: 12px; }
+.vnt-btn {
+  border: 0; border-radius: 18px; padding: 8px 16px; background: #303030; color: #f1f1f1;
+  font: 500 14px Roboto, Arial, sans-serif; cursor: pointer;
+}
+.vnt-btn:hover { background: #3f3f3f; }
+.vnt-primary { background: #3ea6ff; color: #0f0f0f; }
+.vnt-primary:hover { background: #65b8ff; }

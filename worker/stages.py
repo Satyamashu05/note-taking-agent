@@ -54,7 +54,8 @@ def summarize(msg):
     notes_path = d / "notes.json"
     if not notes_path.exists():                       # don't spend LLM quota twice after a crash
         info = json.loads((d / "info.json").read_text())
-        notes = summarize_transcript((d / "transcript.txt").read_text(), info["title"], info["duration"])
+        notes = summarize_transcript((d / "transcript.txt").read_text(), info["title"], info["duration"],
+                                     instructions=msg.get("custom_prompt"))
         save_json(notes_path, notes)
     return {}
 

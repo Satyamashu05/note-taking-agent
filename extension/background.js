@@ -72,15 +72,17 @@ async function saveJobs(jobs) {
   await chrome.action.setBadgeText({ text: active ? String(active) : "" });
 }
 
-async function takeNotes({ videoId, title }) {
+async function takeNotes({ videoId, title, prompt }) {
   const notion = (await getNotion()) || (await connectNotion(), await getNotion());
-  const job = await api("POST", "/jobs", {
+  const body = {
     youtube_url: `https://www.youtube.com/watch?v=${videoId}`,
     notion_token: notion.token,
-  });
+  };
+  if (prompt && prompt.trim()) body.custom_prompt = prompt.trim();   // empty = default notes
+  const job = await api("POST", "/jobs", body);
   const jobs = await getJobs();
   jobs.unshift({ job_id: job.job_id, video_id: videoId, title, status: job.status,
-                 progress: 0, submitted_at: Date.now() });
+                 progress: 0, submitted_at: Date.now(), prompt: body.custom_prompt || null });
   await saveJobs(jobs);
   return { job_id: job.job_id };
 }

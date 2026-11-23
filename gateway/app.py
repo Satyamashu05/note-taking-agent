@@ -21,10 +21,13 @@ VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 NOTION_ID = re.compile(r"^[0-9a-fA-F]{32}$")
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}
 
+MAX_PROMPT_CHARS = 1000
+
 class JobRequest(BaseModel):
     youtube_url: str
     notion_token: str
     notion_parent_id: str | None = None
+    custom_prompt: str | None = None     # optional extra instructions for the notes
 
 class OAuthExchange(BaseModel):
     code: str
@@ -79,6 +82,10 @@ def submit_job(req: JobRequest, response: Response):
         if not NOTION_ID.match(parent_id):
             return error(400, "INVALID_NOTION_PARENT_ID",
                          "notion_parent_id must be a 32-character Notion page ID")
+    prompt = (req.custom_prompt or "").strip()
+    if len(prompt) > MAX_PROMPT_CHARS:
+        return error(400, "PROMPT_TOO_LONG",
+                     f"custom_prompt must be at most {MAX_PROMPT_CHARS} characters")
 
     job_id = str(uuid.uuid4())
     jobs.create(job_id, video_id)
@@ -87,6 +94,7 @@ def submit_job(req: JobRequest, response: Response):
             "job_id": job_id, "stage": "TRANSCRIBING", "video_id": video_id,
             "youtube_url": f"https://www.youtube.com/watch?v={video_id}",
             "notion_token": req.notion_token, "notion_parent_id": parent_id,
+            "custom_prompt": prompt or None,
         })
     except pika.exceptions.AMQPError:
         jobs.update(job_id, status="FAILED",

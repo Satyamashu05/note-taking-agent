@@ -94,10 +94,16 @@ def _section_of(t, starts):
             idx = i
     return idx
 
-def build_blocks(notes, frames, uploads, info, url, warnings):
+def build_blocks(notes, frames, uploads, info, url, warnings, prompt=None):
     blocks = [
         _block("paragraph", _text("Source: "), _text(info["title"], url),
                _text(f" · {_mmss(info['duration'])}")),
+    ]
+    if prompt:
+        blocks.append({"type": "callout", "callout": {
+            "icon": {"type": "emoji", "emoji": "💬"},
+            "rich_text": [_text("Your instructions: "), _text(prompt)]}})
+    blocks += [
         _block("heading_2", _text("Overview")),
         _block("paragraph", _text(notes["overview"] or "-")),
     ]
@@ -134,7 +140,8 @@ def publish_page(msg, info, notes, frames, warnings, outdir):
 
     # 2. Upload the frames, create the page, and remember it straight away.
     uploads = {f["file"]: notion.upload_image(outdir / f["file"]) for f in frames}
-    blocks = build_blocks(notes, frames, uploads, info, msg["youtube_url"], warnings)
+    blocks = build_blocks(notes, frames, uploads, info, msg["youtube_url"], warnings,
+                          prompt=msg.get("custom_prompt"))
     page = notion.create_page(msg.get("notion_parent_id"), f"{notes['title']} {marker}", blocks[:100])
     tmp = page_file.with_suffix(".tmp")
     tmp.write_text(json.dumps({"id": page["id"], "url": page["url"]}))
