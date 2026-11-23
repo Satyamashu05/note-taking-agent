@@ -54,11 +54,14 @@ COMPAT = {
 }
 
 
-def call_llm(contents, system, schema, model=None, rpm=None):
+def call_llm(contents, system, schema, model=None, rpm=None, can_split=False):
     """Return the parsed JSON answer from the first provider in the chain that succeeds.
 
     model/rpm select the Gemini model (e.g. the cheaper check model); the other providers use
     their own text or vision model depending on whether the request contains images.
+    can_split: the caller can resend the request in smaller pieces. Then a provider skipped only
+    for having too many images raises LLM_SPLIT_NEEDED instead of passing the request on to a
+    lower-priority provider, so the provider order is kept.
     """
     images = _count_images(contents)
     simulated_down = {p.strip() for p in os.environ.get("FAULT_LLM_DOWN", "").split(",") if p.strip()}
@@ -71,8 +74,11 @@ def call_llm(contents, system, schema, model=None, rpm=None):
             continue
         if not os.environ.get("GEMINI_API_KEY" if name == "gemini" else spec["key"]):
             continue                                        # not configured
-        if spec and images > spec["max_images"]:
-            continue                                        # this model cannot take that many images
+        if spec and images > spec["max_images"]:            # this model cannot take that many images
+            if can_split:
+                raise RetryableError("LLM_SPLIT_NEEDED",
+                                     f"{name} takes at most {spec['max_images']} images per request")
+            continue
         chosen = (model or config.LLM_MODEL) if name == "gemini" else \
             spec["vision_model" if images else "text_model"]
         wait = _cooldown_left(name, chosen)
@@ -173,9 +179,10 @@ def _compat(name, spec, model, contents, system, schema, images):
     wait_for_llm_slot(f"{name}:{model}", spec.get("vision_rpm", spec["rpm"]) if images else spec["rpm"])
     instructions = (f"{system}\n\nReply with only a JSON object that matches this JSON Schema, "
                     f"with no other text:\n{json.dumps(schema)}")
-    if spec["format"] == "json_schema":
+    if spec["format"] == "json_schema":     # strict = guaranteed to match, when the schema allows it
         response_format = {"type": "json_schema",
-                           "json_schema": {"name": "result", "schema": schema, "strict": False}}
+                           "json_schema": {"name": "result", "schema": schema,
+                                           "strict": _strict_ok(schema)}}
     else:
         response_format = {"type": "json_object"}
     body = {"model": model, "temperature": 0.2, "response_format": response_format,
@@ -260,7 +267,17 @@ def _conform(value, schema, path="$"):
     if kind == "array":
         if not isinstance(value, list):
             raise ValueError(f"{path} should be a list")
-        return [_conform(v, schema.get("items", {}), f"{path}[{i}]") for i, v in enumerate(value)]
+        kept, dropped = [], []
+        for i, v in enumerate(value):
+            try:
+                kept.append(_conform(v, schema.get("items", {}), f"{path}[{i}]"))
+            except ValueError as e:                     # drop one malformed item, keep the rest
+                dropped.append(str(e))
+        if dropped and not kept:
+            raise ValueError(f"every item of {path} was malformed ({dropped[0]})")
+        if dropped:
+            print(f"LLM: dropped {len(dropped)} malformed item(s) from {path}: {dropped[0]}")
+        return kept
     if kind == "integer":
         if isinstance(value, bool):
             raise ValueError(f"{path} should be a whole number")
@@ -278,6 +295,20 @@ def _conform(value, schema, path="$"):
     if "enum" in schema and value not in schema["enum"]:
         raise ValueError(f"{path} should be one of {schema['enum']}")
     return value
+
+
+def _strict_ok(schema):
+    """Strict structured output needs every object to list all its properties as required and
+    forbid extra ones. True for the summary and frame-check schemas, false for the frame agent's
+    (its action-specific fields are optional)."""
+    if schema.get("type") == "object":
+        props = schema.get("properties", {})
+        return (schema.get("additionalProperties") is False
+                and set(schema.get("required", [])) == set(props)
+                and all(_strict_ok(p) for p in props.values()))
+    if schema.get("type") == "array":
+        return _strict_ok(schema.get("items", {}))
+    return True
 
 
 def _header_seconds(resp):

@@ -42,7 +42,8 @@ def _check(moments, outdir, indexes):
             contents.append(f"Moment {i}, candidate {label}:")
             contents.append(types.Part.from_bytes(data=(outdir / c["file"]).read_bytes(),
                                                   mime_type="image/jpeg"))
-    answer = call_llm(contents, SYSTEM, SCHEMA, model=config.LLM_CHECK_MODEL, rpm=config.LLM_CHECK_RPM)
+    answer = call_llm(contents, SYSTEM, SCHEMA, model=config.LLM_CHECK_MODEL, rpm=config.LLM_CHECK_RPM,
+                      can_split=len(indexes) > BATCH)
     return {a["index"]: a for a in answer.get("moments", [])}
 
 
