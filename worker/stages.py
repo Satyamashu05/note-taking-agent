@@ -10,6 +10,8 @@ from pipeline.frames import capture_frames
 from pipeline.verify import verify_frames
 from pipeline.notion import publish_page
 from pipeline.frame_agent import hunt_frames
+from common.errors import FatalError
+from pipeline.audio_transcript import transcribe_audio
 
 def job_dir(job_id):
     d = Path(config.DATA_DIR) / job_id
@@ -31,11 +33,21 @@ def transcribe(msg):
     info_path = d / "info.json"
     if not info_path.exists():                       # skip YouTube if a crashed run already saved it
         info = get_video_info(msg["youtube_url"])    # checks the 20-minute limit first
-        save_text(d / "transcript.txt", get_transcript(info["id"]))
+        try:
+            if os.environ.get("FAULT_NO_CAPTIONS") == "1":   # testing: pretend there are no captions
+                raise FatalError("NO_TRANSCRIPT", "Simulated: this video has no captions")
+            text = get_transcript(info["id"])
+            info["transcript_source"] = "captions"
+        except FatalError as e:
+            if e.code != "NO_TRANSCRIPT":
+                raise
+            print(f"{info['id']}: no captions, transcribing the audio instead")
+            text = transcribe_audio(msg["youtube_url"], d)
+            info["transcript_source"] = "audio"
+        save_text(d / "transcript.txt", text)
         save_json(info_path, info)                   # written last: its existence means "both saved"
     info = json.loads(info_path.read_text())
     return {"video_title": info["title"], "duration_sec": info["duration"]}
-
 
 def summarize(msg):
     d = job_dir(msg["job_id"])

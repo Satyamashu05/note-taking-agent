@@ -13,6 +13,9 @@ const WAIT_REASONS = {
   YOUTUBE_RATE_LIMITED: "YouTube is limiting requests",
   VIDEO_UNAVAILABLE: "the video couldn't be opened",
   RATE_LIMITED: "a rate limit was reached",
+  TRANSCRIPTION_RATE_LIMITED: "the speech-to-text service's rate limit was reached",
+  TRANSCRIPTION_FAILED: "the speech-to-text service is busy",
+  AUDIO_DOWNLOAD_FAILED: "the video's audio couldn't be downloaded",
 };
 // Failures that need more guidance than the server's own message.
 const FAILURE_HELP = {
@@ -21,6 +24,9 @@ const FAILURE_HELP = {
   VIDEO_UNAVAILABLE: "The video is private, deleted or unavailable.",
   LLM_AUTH_FAILED: "The server's Gemini API key was rejected.",
   LLM_MODEL_NOT_FOUND: "The server's Gemini model name is wrong.",
+  NO_SPEECH: "This video has no captions and no speech in its audio, so there is nothing to summarise.",
+  TRANSCRIPTION_AUTH_FAILED: "The server's Groq API key was rejected.",
+  AUDIO_TOO_LARGE: "The video's audio is too large to transcribe.",
 };
 const WARNING_TEXT = {
   FRAME_EXTRACTION_FAILED: "couldn't be captured",

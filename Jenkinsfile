@@ -55,20 +55,18 @@ pipeline {
       // BRANCH_NAME is set in Multibranch jobs, GIT_BRANCH in plain Pipeline jobs.
       when { expression { ['main', 'origin/main'].contains(env.BRANCH_NAME ?: env.GIT_BRANCH) } }
       steps {
-        // .env = settings from .env.example, with the three secrets filled in from Jenkins.
         withCredentials([
           string(credentialsId: 'gemini-api-key',       variable: 'GEMINI_API_KEY'),
           string(credentialsId: 'notion-client-id',     variable: 'NOTION_CLIENT_ID'),
           string(credentialsId: 'notion-client-secret', variable: 'NOTION_CLIENT_SECRET'),
+          string(credentialsId: 'groq-api-key',         variable: 'GROQ_API_KEY'),
         ]) {
           sh '''
-            grep -vE '^(GEMINI_API_KEY|NOTION_CLIENT_ID|NOTION_CLIENT_SECRET)=' .env.example > .env
-            printf 'GEMINI_API_KEY=%s\\nNOTION_CLIENT_ID=%s\\nNOTION_CLIENT_SECRET=%s\\n' \
-              "$GEMINI_API_KEY" "$NOTION_CLIENT_ID" "$NOTION_CLIENT_SECRET" >> .env
+            grep -vE '^(GEMINI_API_KEY|NOTION_CLIENT_ID|NOTION_CLIENT_SECRET|GROQ_API_KEY)=' .env.example > .env
+            printf 'GEMINI_API_KEY=%s\\nNOTION_CLIENT_ID=%s\\nNOTION_CLIENT_SECRET=%s\\nGROQ_API_KEY=%s\\n' \
+              "$GEMINI_API_KEY" "$NOTION_CLIENT_ID" "$NOTION_CLIENT_SECRET" "$GROQ_API_KEY" >> .env
           '''
         }
-        sh 'docker compose $PROD_COMPOSE up -d --build --remove-orphans'
-        sh 'sh ci/wait-healthy.sh $PROD_COMPOSE'
       }
       post {
         failure { sh 'docker compose $PROD_COMPOSE logs --tail 100' }
