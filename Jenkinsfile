@@ -67,6 +67,8 @@ pipeline {
               "$GEMINI_API_KEY" "$NOTION_CLIENT_ID" "$NOTION_CLIENT_SECRET" "$GROQ_API_KEY" >> .env
           '''
         }
+        sh 'docker compose $PROD_COMPOSE up -d --build --remove-orphans'
+        sh 'sh ci/wait-healthy.sh $PROD_COMPOSE'
       }
       post {
         failure { sh 'docker compose $PROD_COMPOSE logs --tail 100' }
