@@ -1,3 +1,6 @@
+import json
+import os
+
 from google.genai import types
 
 from pipeline.llm import call_llm
@@ -48,17 +51,37 @@ def _check(moments, outdir, indexes):
 
 
 def verify_frames(moments, outdir):
-    try:                                    # normally one call with every image
-        answers = _check(moments, outdir, range(len(moments)))
-    except (RetryableError, FatalError) as e:
-        # Backup LLMs take fewer images per request, so retry in small batches they can handle.
-        if len(moments) <= BATCH or getattr(e, "code", "") == "LLM_AUTH_FAILED":
-            raise
-        print(f"frame check: {e.code}, retrying in batches of {BATCH} moments for the backup LLMs")
-        answers = {}
-        for start in range(0, len(moments), BATCH):
-            answers.update(_check(moments, outdir, range(start, min(start + BATCH, len(moments)))))
+    saved = outdir / "frame_check.json"     # progress of a batched check, kept across stage retries
+    state = json.loads(saved.read_text()) if saved.exists() else None
+    if state is None:
+        try:                                # normally one call with every image
+            return _decide(moments, _check(moments, outdir, range(len(moments))))
+        except (RetryableError, FatalError) as e:
+            # Backup LLMs take fewer images per request, so retry in small batches they can handle.
+            if len(moments) <= BATCH or getattr(e, "code", "") == "LLM_AUTH_FAILED":
+                raise
+            print(f"frame check: {e.code}, retrying in batches of {BATCH} moment(s) for the backup LLMs")
+            state = {"done": [], "answers": {}}
+    else:
+        print(f"frame check: resuming, {len(state['done'])} of {len(moments)} moments already checked")
 
+    for start in range(0, len(moments), BATCH):
+        batch = list(range(start, min(start + BATCH, len(moments))))
+        if all(i in state["done"] for i in batch):
+            continue
+        got = _check(moments, outdir, batch)    # a failure retries the stage; finished batches stay
+        if len(batch) == 1 and len(got) == 1:   # weaker models sometimes renumber a lone moment
+            got = {batch[0]: next(iter(got.values()))}
+        got = {i: a for i, a in got.items() if i in batch}
+        state["answers"].update({str(i): a for i, a in got.items()})
+        state["done"] += batch
+        tmp = saved.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state))
+        os.replace(tmp, saved)
+    return _decide(moments, {int(i): a for i, a in state["answers"].items()})
+
+
+def _decide(moments, answers):
     frames, rejected = [], []
     for i, m in enumerate(moments):
         a = answers.get(i)

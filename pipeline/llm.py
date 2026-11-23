@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import re
+import time
 
 import httpx
 from google import genai
@@ -21,6 +22,7 @@ from common.jobs import r
 from common.limiter import wait_for_llm_slot
 
 PROVIDERS = [p.strip() for p in os.environ.get("LLM_PROVIDERS", "gemini").split(",") if p.strip()]
+MAX_WAIT = int(os.environ.get("LLM_MAX_WAIT", "20"))   # wait out a 429 this short instead of moving on
 
 COMPAT = {
     "groq": {
@@ -86,18 +88,32 @@ def call_llm(contents, system, schema, model=None, rpm=None, can_split=False):
             cooling.append(wait)
             continue
 
-        try:
-            if name in simulated_down:                      # testing switch
-                raise RetryableError("LLM_RATE_LIMITED", f"Simulated 429 from {name}", retry_after=30)
-            if name == "gemini":
-                answer = _gemini(contents, system, schema, chosen, rpm or config.LLM_RPM)
-            else:
-                answer = _compat(name, spec, chosen, contents, system, schema, images)
-        except (RetryableError, FatalError) as e:
-            if e.code == "LLM_RATE_LIMITED" and len(PROVIDERS) > 1:   # only useful with a fallback
-                _cool_down(name, chosen, getattr(e, "retry_after", None) or 60)
-            print(f"LLM: {name} ({chosen}) failed with {e.code}: {e}")
-            failures.append(e)
+        error = None
+        for attempt in (1, 2):
+            try:
+                if name in simulated_down:                  # testing switch
+                    raise RetryableError("LLM_RATE_LIMITED", f"Simulated 429 from {name}", retry_after=30)
+                if name == "gemini":
+                    answer = _gemini(contents, system, schema, chosen, rpm or config.LLM_RPM)
+                else:
+                    answer = _compat(name, spec, chosen, contents, system, schema, images)
+                error = None
+                break
+            except (RetryableError, FatalError) as e:
+                error = e
+                pause = getattr(e, "retry_after", None)
+                # A short 429 wait keeps the provider order: better than a weaker, lower provider.
+                if (attempt == 1 and e.code == "LLM_RATE_LIMITED" and len(PROVIDERS) > 1
+                        and name not in simulated_down and pause and pause <= MAX_WAIT):
+                    print(f"LLM: {name} ({chosen}) asks to wait {pause}s, waiting instead of moving on")
+                    time.sleep(pause)
+                    continue
+                break
+        if error is not None:
+            if error.code == "LLM_RATE_LIMITED" and len(PROVIDERS) > 1:   # only useful with a fallback
+                _cool_down(name, chosen, getattr(error, "retry_after", None) or 60)
+            print(f"LLM: {name} ({chosen}) failed with {error.code}: {error}")
+            failures.append(error)
             continue
         if failures or cooling:
             print(f"LLM: answered by fallback provider {name} ({chosen})")
