@@ -13,7 +13,7 @@ def retry_queue(seconds):
 def connect():
     params = pika.URLParameters(config.RABBITMQ_URL)
     params.client_properties = {"connection_name": socket.gethostname()}
-    conn = pika.BlockingConnection(pika.URLParameters(config.RABBITMQ_URL))
+    conn = pika.BlockingConnection(params)
     ch = conn.channel()
     ch.confirm_delivery()
     ch.queue_declare(JOBS, durable=True)

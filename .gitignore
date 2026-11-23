@@ -20,3 +20,6 @@ work/
 .vscode/
 .DS_Store
 Thumbs.db
+
+report/
+Distributed_Cloud.pdf
