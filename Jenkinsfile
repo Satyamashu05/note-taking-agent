@@ -60,11 +60,15 @@ pipeline {
           string(credentialsId: 'notion-client-id',     variable: 'NOTION_CLIENT_ID'),
           string(credentialsId: 'notion-client-secret', variable: 'NOTION_CLIENT_SECRET'),
           string(credentialsId: 'groq-api-key',         variable: 'GROQ_API_KEY'),
+          string(credentialsId: 'openrouter-api-key',   variable: 'OPENROUTER_API_KEY'),
         ]) {
           sh '''
-            grep -vE '^(GEMINI_API_KEY|NOTION_CLIENT_ID|NOTION_CLIENT_SECRET|GROQ_API_KEY)=' .env.example > .env
-            printf 'GEMINI_API_KEY=%s\\nNOTION_CLIENT_ID=%s\\nNOTION_CLIENT_SECRET=%s\\nGROQ_API_KEY=%s\\n' \
-              "$GEMINI_API_KEY" "$NOTION_CLIENT_ID" "$NOTION_CLIENT_SECRET" "$GROQ_API_KEY" >> .env
+            grep -vE '^(GEMINI_API_KEY|NOTION_CLIENT_ID|NOTION_CLIENT_SECRET|GROQ_API_KEY|OPENROUTER_API_KEY)=' .env.example > .env
+            printf 'GEMINI_API_KEY=%s\\n'       "$GEMINI_API_KEY"       >> .env
+            printf 'NOTION_CLIENT_ID=%s\\n'     "$NOTION_CLIENT_ID"     >> .env
+            printf 'NOTION_CLIENT_SECRET=%s\\n' "$NOTION_CLIENT_SECRET" >> .env
+            printf 'GROQ_API_KEY=%s\\n'         "$GROQ_API_KEY"         >> .env
+            printf 'OPENROUTER_API_KEY=%s\\n'   "$OPENROUTER_API_KEY"   >> .env
           '''
         }
         sh 'docker compose $PROD_COMPOSE up -d --build --remove-orphans'

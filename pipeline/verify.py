@@ -2,6 +2,7 @@ from google.genai import types
 
 from pipeline.llm import call_llm
 from common import config
+from common.errors import FatalError, RetryableError
 
 SYSTEM = """You check video frames for study notes. For each moment you get the caption that was
 planned from the transcript and up to two candidate frames: A at the planned time, B a few
@@ -29,17 +30,33 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-def verify_frames(moments, outdir):
+BATCH = 2   # moments per call when falling back: at most 4 images, which every vision model takes
+
+
+def _check(moments, outdir, indexes):
     contents = ["Check each moment and choose its best frame."]
-    for i, m in enumerate(moments):
+    for i in indexes:
+        m = moments[i]
         contents.append(f"Moment {i}. Planned caption: {m['caption']} Planned reason: {m['reason']}")
         for label, c in sorted(m["candidates"].items()):
             contents.append(f"Moment {i}, candidate {label}:")
             contents.append(types.Part.from_bytes(data=(outdir / c["file"]).read_bytes(),
                                                   mime_type="image/jpeg"))
-    answers = {a["index"]: a for a in call_llm(contents, SYSTEM, SCHEMA, model=config.LLM_CHECK_MODEL,
-                rpm=config.LLM_CHECK_RPM).get("moments", [])}
+    answer = call_llm(contents, SYSTEM, SCHEMA, model=config.LLM_CHECK_MODEL, rpm=config.LLM_CHECK_RPM)
+    return {a["index"]: a for a in answer.get("moments", [])}
 
+
+def verify_frames(moments, outdir):
+    try:                                    # normally one call with every image
+        answers = _check(moments, outdir, range(len(moments)))
+    except (RetryableError, FatalError) as e:
+        # Backup LLMs take fewer images per request, so retry in small batches they can handle.
+        if len(moments) <= BATCH or getattr(e, "code", "") == "LLM_AUTH_FAILED":
+            raise
+        print(f"frame check: {e.code}, retrying in batches of {BATCH} moments for the backup LLMs")
+        answers = {}
+        for start in range(0, len(moments), BATCH):
+            answers.update(_check(moments, outdir, range(start, min(start + BATCH, len(moments)))))
 
     frames, rejected = [], []
     for i, m in enumerate(moments):
