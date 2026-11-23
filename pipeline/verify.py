@@ -30,7 +30,7 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-BATCH = 2   # moments per call when falling back: at most 4 images, which every vision model takes
+BATCH = 1   # moments per call when falling back: 2 images, which every backup vision model takes
 
 
 def _check(moments, outdir, indexes):

@@ -28,8 +28,9 @@ COMPAT = {
         "key": "GROQ_API_KEY",
         "text_model": os.environ.get("GROQ_TEXT_MODEL", "openai/gpt-oss-120b"),
         "vision_model": os.environ.get("GROQ_VISION_MODEL", "qwen/qwen3.8-27b"),
-        "max_images": 5,
+        "max_images": int(os.environ.get("GROQ_MAX_IMAGES", "3")),
         "rpm": int(os.environ.get("GROQ_RPM", "30")),
+        "vision_rpm": int(os.environ.get("GROQ_VISION_RPM", "10")),   # images use far more tokens
         "format": "json_schema",
     },
     "mistral": {
@@ -46,7 +47,7 @@ COMPAT = {
         "key": "OPENROUTER_API_KEY",
         "text_model": os.environ.get("OPENROUTER_TEXT_MODEL", "openrouter/free"),
         "vision_model": os.environ.get("OPENROUTER_VISION_MODEL", "openrouter/free"),
-        "max_images": 8,
+        "max_images": int(os.environ.get("OPENROUTER_MAX_IMAGES", "8")),
         "rpm": int(os.environ.get("OPENROUTER_RPM", "10")),
         "format": "json_object",     # the free router picks the model, so only ask for plain JSON
     },
@@ -169,7 +170,7 @@ def _gemini(contents, system, schema, model, rpm):
 # ---------- OpenAI-compatible providers ----------
 
 def _compat(name, spec, model, contents, system, schema, images):
-    wait_for_llm_slot(f"{name}:{model}", spec["rpm"])
+    wait_for_llm_slot(f"{name}:{model}", spec.get("vision_rpm", spec["rpm"]) if images else spec["rpm"])
     instructions = (f"{system}\n\nReply with only a JSON object that matches this JSON Schema, "
                     f"with no other text:\n{json.dumps(schema)}")
     if spec["format"] == "json_schema":
