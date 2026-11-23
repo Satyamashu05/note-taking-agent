@@ -28,14 +28,13 @@ function askForPrompt() {
     overlay.innerHTML = `
       <div class="vnt-modal" role="dialog" aria-modal="true" aria-labelledby="vnt-dialog-title">
         <h2 id="vnt-dialog-title">Take notes</h2>
-        <p class="vnt-hint">Tell the AI what you want from these notes(optional)</p>
+        <p class="vnt-hint">What do you want from these notes(optional)</p>
         <textarea class="vnt-input" rows="4" maxlength="${MAX_PROMPT}"
                   placeholder="e.g. Focus on formulas and definitions"></textarea>
         <div class="vnt-chips"></div>
         <div class="vnt-row">
           <span class="vnt-count"></span>
           <button type="button" class="vnt-btn vnt-cancel">Cancel</button>
-          <button type="button" class="vnt-btn vnt-default">Use default</button>
           <button type="button" class="vnt-btn vnt-primary vnt-go">Take notes</button>
         </div>
       </div>`;
@@ -64,7 +63,6 @@ function askForPrompt() {
       resolve(value);
     };
     overlay.querySelector(".vnt-cancel").addEventListener("click", () => close(null));
-    overlay.querySelector(".vnt-default").addEventListener("click", () => close(""));
     overlay.querySelector(".vnt-go").addEventListener("click", () => close(input.value.trim()));
     overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
     input.addEventListener("input", updateCount);

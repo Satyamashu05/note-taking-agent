@@ -112,7 +112,10 @@ def call_llm(contents, system, schema, model=None, rpm=None, can_split=False):
         if error is not None:
             if error.code == "LLM_RATE_LIMITED" and len(PROVIDERS) > 1:   # only useful with a fallback
                 _cool_down(name, chosen, getattr(error, "retry_after", None) or 60)
-            print(f"LLM: {name} ({chosen}) failed with {error.code}: {error}")
+            pause = getattr(error, "retry_after", None)
+            print(f"LLM: {name} ({chosen}) failed with {error.code}: {error}"
+                  + (f" (asked to wait {pause}s, more than LLM_MAX_WAIT={MAX_WAIT}s)"
+                     if error.code == "LLM_RATE_LIMITED" and pause else ""))
             failures.append(error)
             continue
         if failures or cooling:
