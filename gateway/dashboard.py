@@ -18,7 +18,8 @@ from common import broker, config, jobs
 
 router = APIRouter()
 PAGE = Path(__file__).with_name("dashboard.html")
-RECENT_JOBS = 30
+RECENT_FINISHED = 30   # finished jobs sent to the page; unfinished ones are always sent
+MAX_ACTIVE = 200
 _amqp = urlparse(config.RABBITMQ_URL)
 RABBIT_API = f"http://{_amqp.hostname}:15672/api"
 RABBIT_AUTH = (_amqp.username or "guest", _amqp.password or "guest")
@@ -41,7 +42,8 @@ def dashboard_data():
     try:
         out.update(job_state(now))
     except redis.RedisError as e:
-        out.update(counts={}, jobs=[], busy={}, redis_error=repr(e))
+        out.update(counts={}, jobs=[], busy={}, errors={}, done_60s=0,
+                   totals={"jobs": 0, "retries": 0}, redis_error=repr(e))
     return out
 
 
@@ -56,14 +58,19 @@ def rabbit_state():
     # Workers name their AMQP connection after their hostname (common/broker.py).
     names = {con["name"]: (con.get("client_properties") or {}).get("connection_name")
              or con.get("peer_host") for con in connections}
-    workers = set()
+    connected_at = {con["name"]: con.get("connected_at") for con in connections}
+    workers, since = set(), {}
     for con in consumers:
         if (con.get("queue") or {}).get("name") == broker.JOBS:
             ch = con.get("channel_details") or {}
-            workers.add(names.get(ch.get("connection_name")) or ch.get("peer_host") or "?")
+            name = names.get(ch.get("connection_name")) or ch.get("peer_host") or "?"
+            workers.add(name)
+            if connected_at.get(ch.get("connection_name")):  # RabbitMQ reports milliseconds
+                since[name] = connected_at[ch["connection_name"]] // 1000
     ours = {broker.JOBS, broker.DLQ}
     return {
         "workers": sorted(workers),
+        "worker_since": since,
         "queues": {q["name"]: {"ready": q.get("messages_ready", 0),
                                "in_progress": q.get("messages_unacknowledged", 0)}
                    for q in queues if q["name"] in ours or q["name"].startswith("retry.")},
@@ -85,20 +92,34 @@ def job_state(now):
     data = {key.split(":", 1)[1]: d for key, d in zip(keys, pipe.execute(raise_on_error=False))
             if isinstance(d, dict) and d}
 
-    counts = {}
+    counts, errors, retries, done_60s = {}, {}, 0, 0
     for d in data.values():
         status = d.get("status", "UNKNOWN")
         counts[status] = counts.get(status, 0) + 1
         if status not in jobs.TERMINAL and d.get("retry_at") and int(d["retry_at"]) > now:
             counts["WAITING_RETRY"] = counts.get("WAITING_RETRY", 0) + 1
+        # Each job counts once, under its most recent error code.
+        code = (_json(d, "error") or {}).get("code") or (_json(d, "last_error") or {}).get("code")
+        if code:
+            errors[code] = errors.get(code, 0) + 1
+        # attempts:<STAGE> counts runs of that stage, so anything past 1 is a retry.
+        retries += sum(max(0, int(v) - 1) for f, v in d.items()
+                       if f.startswith("attempts:") and str(v).isdigit())
+        if status.startswith("COMPLETED") and int(d.get("finished_at") or 0) >= now - 60:
+            done_60s += 1
 
-    recent = sorted(data, key=lambda j: int(data[j].get("created_at") or 0), reverse=True)
+    # The stage board needs every unfinished job; finished ones are capped to the most recent.
+    newest = sorted(data, key=lambda j: int(data[j].get("created_at") or 0), reverse=True)
+    active = [j for j in newest if data[j].get("status") not in jobs.TERMINAL][:MAX_ACTIVE]
+    finished = [j for j in newest if data[j].get("status") in jobs.TERMINAL][:RECENT_FINISHED]
+    shown = sorted(active + finished, key=lambda j: int(data[j].get("created_at") or 0), reverse=True)
     busy = {owner.split(":")[0]: {"job_id": job_id,
                                   "status": data.get(job_id, {}).get("status"),
                                   "title": _title(data.get(job_id, {}))}
             for job_id, owner in owners.items()}
-    return {"counts": counts, "busy": busy,
-            "jobs": [job_row(j, data[j], owners.get(j)) for j in recent[:RECENT_JOBS]]}
+    return {"counts": counts, "busy": busy, "errors": errors, "done_60s": done_60s,
+            "totals": {"jobs": len(data), "retries": retries},
+            "jobs": [job_row(j, data[j], owners.get(j)) for j in shown]}
 
 
 def _json(d, field):
@@ -126,4 +147,6 @@ def job_row(job_id, d, owner):
         "warnings": len(_json(d, "warnings") or []),
         "notion_url": (_json(d, "result") or {}).get("notion_page_url"),
         "worker": owner,
+        "created_at": int(d.get("created_at") or 0),
+        "finished_at": int(d["finished_at"]) if d.get("finished_at") else None,
     }

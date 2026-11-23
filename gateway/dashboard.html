@@ -4,192 +4,326 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Live Ops · Note-Taking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&display=swap">
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --text:#e6e8ee; --muted:#8a93a6;
-          --blue:#4c8dff; --green:#2fbf71; --amber:#f0a500; --red:#ef4b4b; --purple:#a77bf3; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-         background:var(--bg); color:var(--text); }
-  header { display:flex; align-items:center; gap:12px; padding:16px 24px; border-bottom:1px solid var(--line); }
-  h1 { font-size:18px; margin:0; font-weight:600; }
-  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-       margin:0 0 10px; font-weight:600; }
-  .live { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; margin-left:auto; }
-  .dot { width:8px; height:8px; border-radius:50%; background:var(--green); }
-  .dot.stale { background:var(--red); }
-  main { padding:20px 16px; display:grid; gap:16px; max-width:1400px; margin:0 auto; }
-  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
-  .tile, .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
-  .tile { padding:14px 16px; }
-  .tile .n { font-size:30px; font-weight:650; font-variant-numeric:tabular-nums; }
-  .tile .l { color:var(--muted); font-size:12px; }
-  .panel { padding:16px; min-width:0; }
-  .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:900px) { .cols { grid-template-columns:1fr; } }
-  .pipeline { display:flex; flex-wrap:wrap; gap:8px; }
-  .stage { flex:1 1 110px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
-  .stage .n { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .stage .l { font-size:11px; color:var(--muted); }
-  .workers { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
-  .worker { border:1px solid var(--line); border-radius:8px; padding:10px; }
-  .worker.busy { border-color:var(--blue); }
-  .worker.new { animation:flash 1s; }
-  @keyframes flash { from { background:rgba(47,191,113,.3); } to { background:transparent; } }
-  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
-  .muted { color:var(--muted); }
-  .small { font-size:12px; }
-  .feed { max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:4px; }
-  .ev { font-size:13px; }
-  .ev time { color:var(--muted); margin-right:8px; font-variant-numeric:tabular-nums; }
-  .scroll { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  th { font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px;
-           font-weight:600; border:1px solid currentColor; white-space:nowrap; }
-  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; width:100px; }
-  .bar i { display:block; height:100%; background:var(--blue); transition:width .5s; }
-  a { color:var(--blue); }
-  .c-QUEUED { color:var(--muted); }
-  .c-TRANSCRIBING, .c-SUMMARIZING, .c-EXTRACTING_FRAMES, .c-PUBLISHING { color:var(--blue); }
-  .c-COMPLETED { color:var(--green); }
-  .c-COMPLETED_WITH_WARNINGS, .c-WAITING { color:var(--amber); }
-  .c-FAILED { color:var(--red); }
-  .c-DEAD_LETTERED { color:var(--purple); }
+  /* Desk Board: a dense terminal layout. Dark only, by design. */
+  :root { --bg:#030303; --pn:#0b0b0b; --hd:#141414; --ln:#262626; --or:#ff9c1a; --fg:#e8e8e8; --mu:#8a8a8a;
+          --cy:#62d2ff; --up:#2fd46d; --dn:#ff4545; --yl:#ffe066; --pu:#c08bff;
+          --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+          --cond:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:12px/1.35 var(--mono);
+         display:grid; gap:6px; align-content:start; padding-bottom:10px; min-height:100vh; }
+  a { color:var(--cy); }
+  .tape { overflow:hidden; white-space:nowrap; background:#111; border-bottom:1px solid var(--ln); padding:6px 0; min-height:28px; }
+  .track { display:inline-flex; animation:scroll 90s linear infinite; }
+  .seg { display:inline-flex; gap:48px; padding:0 24px; }
+  @keyframes scroll { to { transform:translateX(-50%); } }
+  .bar { display:flex; gap:6px 18px; align-items:center; padding:4px 10px; background:var(--or); color:#000;
+         font:700 13px var(--cond); text-transform:uppercase; letter-spacing:.04em; flex-wrap:wrap; }
+  .bar span { font-weight:500; }
+  .bar .r { margin-left:auto; font-variant-numeric:tabular-nums; }
+  .bar .bad { background:#000; color:var(--dn); padding:0 6px; font-weight:700; }
+  .quotes { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; padding:0 6px; }
+  .q { border:1px solid var(--ln); background:var(--pn); padding:6px 8px; display:grid; gap:2px; }
+  .q h4 { margin:0; color:var(--or); font:600 11px var(--cond); text-transform:uppercase; letter-spacing:.06em;
+          display:flex; justify-content:space-between; gap:6px; }
+  .q b { font-size:26px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .q small { color:var(--mu); font-size:11px; }
+  .q em { font-style:normal; font-size:12px; }
+  .q svg { width:100%; height:28px; display:block; }
+  .up { color:var(--up); } .dn { color:var(--dn); } .fl { color:var(--mu); }
+  .p { border:1px solid var(--ln); background:var(--pn); min-width:0; }
+  .p > h4 { margin:0; padding:4px 8px; background:#1a1a1a; color:var(--or); font:600 11px var(--cond);
+            text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--ln);
+            display:flex; justify-content:space-between; gap:8px; }
+  .p > h4 span { color:var(--mu); }
+  .board-wrap { margin:0 6px; }
+  .board { display:grid; grid-template-columns:repeat(7,minmax(150px,1fr)); gap:1px; background:var(--ln); overflow-x:auto; }
+  .col { background:var(--pn); min-width:0; display:flex; flex-direction:column; min-height:320px; }
+  .col h5 { margin:0; padding:5px 8px 1px; display:flex; justify-content:space-between; align-items:baseline; gap:6px;
+            color:var(--or); font:600 11px var(--cond); letter-spacing:.06em; text-transform:uppercase; background:var(--hd); }
+  .col h5 b { color:var(--fg); font:600 15px var(--mono); font-variant-numeric:tabular-nums; }
+  .col h5 em { font-style:normal; font:500 11px var(--mono); margin-left:6px; }
+  .col.attn h5 { color:var(--dn); } .col.done h5 { color:var(--up); }
+  .col svg { display:block; width:100%; height:16px; background:var(--hd); border-bottom:1px solid var(--ln); }
+  .cards { display:flex; flex-direction:column; }
+  .card { padding:5px 8px 6px; border-bottom:1px solid #1c1c1c; display:grid; gap:2px; animation:flash 1.6s ease-out; }
+  .card.nf { animation:none; }
+  .card.f-ok { animation-name:flash-ok; } .card.f-bad { animation-name:flash-bad; } .card.f-warn { animation-name:flash-warn; }
+  @keyframes flash      { from { background:rgba(98,210,255,.34); } to { background:rgba(0,0,0,0); } }
+  @keyframes flash-ok   { from { background:rgba(47,212,109,.34); } to { background:rgba(0,0,0,0); } }
+  @keyframes flash-bad  { from { background:rgba(255,69,69,.40); }  to { background:rgba(0,0,0,0); } }
+  @keyframes flash-warn { from { background:rgba(255,224,102,.32); } to { background:rgba(0,0,0,0); } }
+  .l1 { display:flex; gap:8px; align-items:baseline; min-width:0; }
+  .id { color:var(--cy); }
+  .wk { color:var(--mu); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rr { margin-left:auto; font-variant-numeric:tabular-nums; }
+  .tt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11.5px; color:#bdbdbd; }
+  .pb { height:2px; background:#232323; margin-top:2px; }
+  .pb i { display:block; height:100%; background:var(--cy); transition:width .8s linear; }
+  .tag { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .more { padding:4px 8px; color:var(--mu); font-size:11px; }
+  .low { display:grid; grid-template-columns:minmax(0,2.3fr) minmax(0,1fr); gap:6px; padding:0 6px; }
+  .side { display:grid; gap:6px; align-content:start; min-width:0; }
+  .scroll { overflow:auto; max-height:320px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th { color:var(--cy); font-weight:500; text-align:left; padding:3px 8px; border-bottom:1px solid var(--ln);
+       white-space:nowrap; position:sticky; top:0; background:var(--pn); }
+  td { padding:3px 8px; border-bottom:1px solid #151515; white-space:nowrap; }
+  tr:nth-child(even) td { background:#080808; }
+  .rt { text-align:right; }
+  .s-run { color:var(--cy); } .s-ok { color:var(--up); } .s-warn { color:var(--yl); }
+  .s-bad { color:var(--dn); } .s-dead { color:var(--pu); } .s-idle, .s-info { color:var(--mu); }
+  .foot { display:flex; gap:6px 18px; padding:4px 10px; color:var(--mu); border-top:1px solid var(--ln); flex-wrap:wrap; }
+  .empty { padding:8px; color:var(--mu); }
+  @media (max-width:1000px) { .quotes { grid-template-columns:repeat(3,minmax(0,1fr)); } .low { grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Note-Taking Agent · Live Ops</h1>
-  <div class="live"><span class="dot" id="dot"></span><span id="updated">connecting…</span></div>
-</header>
-<main>
-  <section class="tiles">
-    <div class="tile"><div class="n" id="t-workers">–</div><div class="l" id="t-workers-l">workers online</div></div>
-    <div class="tile"><div class="n" id="t-ready">–</div><div class="l">messages waiting in queue</div></div>
-    <div class="tile"><div class="n" id="t-busy">–</div><div class="l">being processed</div></div>
-    <div class="tile"><div class="n c-WAITING" id="t-retry">–</div><div class="l">waiting to retry (backoff)</div></div>
-    <div class="tile"><div class="n c-DEAD_LETTERED" id="t-dlq">–</div><div class="l">in dead-letter queue</div></div>
-  </section>
-
-  <section class="panel"><h2>Jobs by status</h2><div class="pipeline" id="pipeline"></div></section>
-
-  <div class="cols">
-    <section class="panel"><h2>Workers</h2><div class="workers" id="workers"></div></section>
-    <section class="panel"><h2>Events</h2><div class="feed" id="feed"></div></section>
-  </div>
-
-  <section class="panel">
-    <h2>Recent jobs</h2>
+<div class="tape"><div class="track" id="track"></div></div>
+<div class="bar"><b>Note-agent</b><span>Live ops monitor</span><span>RabbitMQ jobs · Redis job:* lock:*</span><span class="r" id="status">connecting…</span></div>
+<div class="quotes" id="quotes"></div>
+<section class="p board-wrap"><h4>Stage board<span>cards flash when a job enters a stage</span></h4><div class="board" id="board"></div></section>
+<div class="low">
+  <section class="p"><h4>Job blotter<span id="jn"></span></h4>
     <div class="scroll"><table>
-      <thead><tr><th>Job</th><th>Video</th><th>Status</th><th>Progress</th><th>Attempt</th><th>Worker</th><th>Details</th></tr></thead>
+      <thead><tr><th>JOB</th><th>LECTURE</th><th>STATUS</th><th class="rt">PROG</th><th class="rt">TRY</th><th>WORKER</th><th class="rt">AGE</th><th class="rt">TOOK</th><th>DETAIL</th></tr></thead>
       <tbody id="jobs"></tbody>
     </table></div>
   </section>
-</main>
+  <div class="side">
+    <section class="p"><h4>Workers<span id="wn"></span></h4>
+      <table><thead><tr><th>HOST</th><th>STATE</th><th>JOB</th><th class="rt">UP</th></tr></thead><tbody id="workers"></tbody></table>
+    </section>
+    <section class="p"><h4>Errors by code<span>latest per job</span></h4><table><tbody id="errs"></tbody></table></section>
+  </div>
+</div>
+<div class="foot" id="foot"></div>
 
 <script>
 const ORDER = ["QUEUED", "TRANSCRIBING", "SUMMARIZING", "EXTRACTING_FRAMES", "PUBLISHING",
                "COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "DEAD_LETTERED"];
 const TERMINAL = new Set(ORDER.slice(5));
+const COLS = [["Queued", "QUEUED"], ["Transcribe", "TRANSCRIBING"], ["Summarize", "SUMMARIZING"],
+              ["Frames", "EXTRACTING_FRAMES"], ["Publish", "PUBLISHING"], ["Done", "DONE"], ["Attention", "ATTN"]];
+const CARD_LIMIT = 8, HIST = 60, TAPE_EVERY = 15;
+
 const $ = (id) => document.getElementById(id);
-const set = (id, v) => { $(id).textContent = v; };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const label = (s) => s.replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
-const short = (id) => id.slice(0, 8);
-const host = (owner) => (owner || "").split(":")[0];
+const short = (id) => String(id || "").slice(0, 8);
+const host = (owner) => String(owner || "").split(":")[0];
+const pad2 = (n) => String(n).padStart(2, "0");
+const clock = (t) => { const d = new Date(t * 1000); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const dur = (s) => { s = Math.max(0, Math.round(s)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${pad2(s % 60)}s` : `${Math.floor(s / 3600)}h ${pad2(Math.floor(s / 60) % 60)}m`; };
+const shown = (j, now) => (!TERMINAL.has(j.status) && j.retry_at && j.retry_at > now ? "WAITING" : j.status);
+const tone = (s) => s === "QUEUED" ? "idle" : s === "WAITING" || s === "COMPLETED_WITH_WARNINGS" ? "warn"
+  : s === "COMPLETED" ? "ok" : s === "FAILED" ? "bad" : s === "DEAD_LETTERED" ? "dead" : "run";
+const inCol = (col, s) => col === "DONE" ? s === "COMPLETED" || s === "COMPLETED_WITH_WARNINGS"
+  : col === "ATTN" ? s === "WAITING" || s === "FAILED" || s === "DEAD_LETTERED" : s === col;
 
-let prev = null;
+// Write innerHTML only when it changed, so running CSS transitions and animations survive.
+function put(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
+// Reconcile children by key: existing elements are kept (and patched), new ones created, missing ones removed.
+function keyed(parent, items, key, make, patch) {
+  const map = parent._k || (parent._k = new Map());
+  const keys = new Set(items.map(key));
+  for (const [k, el] of map) if (!keys.has(k)) { el.remove(); map.delete(k); }
+  items.forEach((it, i) => {
+    const k = key(it);
+    let el = map.get(k);
+    if (!el) { el = make(it); map.set(k, el); }
+    if (parent.children[i] !== el) parent.insertBefore(el, parent.children[i] || null);
+    patch(el, it);
+  });
+}
+function spark(arr, w, h) {
+  const n = arr.length;
+  if (!n) return { line: "", area: "" };
+  const m = Math.max(1, ...arr);
+  const pts = arr.map((v, i) => `${(n === 1 ? w : (i / (n - 1)) * w).toFixed(1)},${(h - (v / m) * (h - 2) - 1).toFixed(1)}`);
+  const line = "M" + pts.join("L");
+  return { line, area: `${line}L${w},${h}L0,${h}Z` };
+}
+
+// ── state kept between polls ──
+const hist = { ready: [], busy: [], retry: [], dlq: [], workers: [], done: [] };
+const colHist = COLS.map(() => []);
+const events = [];
 const lastOwner = {};  // job_id -> last worker seen holding it (survives the lock expiring)
+let prev = null, polls = 0, tapeAt = -TAPE_EVERY, boardReady = false;
 
-function addEvent(html, cls = "") {
-  const el = document.createElement("div");
-  el.className = "ev " + cls;
-  el.innerHTML = `<time>${new Date().toLocaleTimeString()}</time>${html}`;
-  $("feed").prepend(el);
-  while ($("feed").children.length > 100) $("feed").lastChild.remove();
+function push(arr, v) { arr.push(v); if (arr.length > HIST) arr.shift(); }
+function addEvent(text, t) {
+  events.unshift({ t: Date.now() / 1000, text, tone: t });
+  if (events.length > 40) events.length = 40;
+}
+
+// ── layout built once ──
+$("board").innerHTML = COLS.map(([name, key]) =>
+  `<section class="col${key === "ATTN" ? " attn" : key === "DONE" ? " done" : ""}" data-col="${key}">
+     <h5><span>${name}</span><span><b>–</b><em></em></span></h5>
+     <svg viewBox="0 0 150 16" preserveAspectRatio="none"><path fill="none" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg>
+     <div class="cards"></div><div class="more"></div></section>`).join("");
+
+function card(j, d, live) {
+  const s = shown(j, d.now), t = tone(s), w = host(j.worker);
+  const lost = !TERMINAL.has(j.status) && w && d.rabbit && !live.has(w);
+  let tag = "";
+  if (s === "WAITING") tag = `<span class="s-warn">RETRY ${Math.ceil(j.retry_at - d.now)}s · ${esc(j.last_error || "error")}</span>`;
+  else if (s === "FAILED") tag = `<span class="s-bad">FAILED · ${esc(j.error)}</span>`;
+  else if (s === "DEAD_LETTERED") tag = `<span class="s-dead">DLQ · ${esc(j.error)}</span>`;
+  else if (lost) tag = `<span class="s-bad">WORKER LOST · REDELIVERING</span>`;
+  else if (j.notion_url) tag = `<a class="s-ok" href="${esc(j.notion_url)}" target="_blank" rel="noopener">IN NOTION ↗</a>${j.warnings ? ` <span class="s-warn">${j.warnings}W</span>` : ""}`;
+  else if (j.attempt > 1) tag = `<span class="s-warn">TRY ${j.attempt}</span>`;
+  const right = t === "run" ? `${j.progress}%` : dur(d.now - j.created_at);
+  return `<div class="l1"><span class="id">${short(j.job_id)}</span><span class="wk">${w ? esc(w.slice(0, 12)) : s === "QUEUED" ? "unassigned" : TERMINAL.has(s) || s === "WAITING" ? "" : "waiting for worker"}</span><span class="rr">${right}</span></div>` +
+    `<div class="tt" title="${esc(j.title)}">${esc(j.title || "untitled")}</div>` +
+    (t === "run" ? `<div class="pb"><i style="width:${j.progress}%"></i></div>` : "") + (tag ? `<div class="tag">${tag}</div>` : "");
 }
 
 function render(d) {
-  const now = d.now, rb = d.rabbit;
+  const now = d.now, rb = d.rabbit, c = d.counts || {};
   const live = new Set(rb ? rb.workers : []);
-  const before = new Set(prev?.rabbit?.workers || []);
   const q = (name) => (rb && rb.queues[name]) || { ready: 0, in_progress: 0 };
+  const k = {
+    workers: rb ? rb.workers.length : null, ready: rb ? q("jobs").ready : null, busy: rb ? q("jobs").in_progress : null,
+    retry: c.WAITING_RETRY || 0, dlq: rb ? q("jobs.dlq").ready : (c.DEAD_LETTERED || 0), done: d.done_60s || 0,
+  };
+  for (const key of Object.keys(hist)) if (k[key] != null) push(hist[key], k[key]);
 
-  set("t-workers", rb ? rb.workers.length : "–");
-  set("t-workers-l", `workers online · autoscale ${d.scale.min}–${d.scale.max}`);
-  set("t-ready", rb ? q("jobs").ready : "–");
-  set("t-busy", rb ? q("jobs").in_progress : "–");
-  set("t-retry", d.counts.WAITING_RETRY || 0);
-  set("t-dlq", rb ? q("jobs.dlq").ready : (d.counts.DEAD_LETTERED || 0));
+  // status bar
+  const problems = [];
+  if (!rb) problems.push(`RabbitMQ API unreachable`);
+  if (d.redis_error) problems.push(`Redis unreachable`);
+  put($("status"), (problems.length ? problems.map((p) => `<span class="bad">${esc(p)}</span> `).join("") : "") + `${clock(now)} · LIVE`);
 
-  $("pipeline").innerHTML = ORDER.map((s) =>
-    `<div class="stage"><div class="n c-${s}">${d.counts[s] || 0}</div><div class="l">${label(s)}</div></div>`
-  ).join("");
+  // quote boxes: value, change over the last ~10 polls, sparkline
+  const quotes = [["Ready", "ready", -1, "messages in jobs queue"], ["In flight", "busy", 1, "unacked deliveries"],
+    ["Retry", "retry", -1, "waiting for backoff"], ["DLQ", "dlq", -1, "dead-letter queue"],
+    ["Workers", "workers", 1, `autoscale ${d.scale.min}–${d.scale.max}`], ["Done/60s", "done", 1, "published last minute"]];
+  put($("quotes"), quotes.map(([name, key, good, sub]) => {
+    const h = hist[key], v = k[key];
+    const before = h.length > 10 ? h[h.length - 11] : h[0] ?? v ?? 0, delta = (v ?? 0) - before;
+    const cls = delta === 0 ? "fl" : (delta > 0) === (good > 0) ? "up" : "dn";
+    const col = cls === "up" ? "#2fd46d" : cls === "dn" ? "#ff4545" : "#8a8a8a";
+    const p = spark(h, 200, 28);
+    return `<div class="q"><h4>${name}<em class="${cls}">${delta > 0 ? "▲" : delta < 0 ? "▼" : "■"} ${Math.abs(delta)}</em></h4>
+      <b>${v ?? "–"}</b><small>${sub}</small>
+      <svg viewBox="0 0 200 28" preserveAspectRatio="none"><path d="${p.area}" fill="${col}" fill-opacity=".12"/><path d="${p.line}" fill="none" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg></div>`;
+  }).join(""));
 
-  $("workers").innerHTML = !rb
-    ? `<div class="muted">RabbitMQ API unreachable: ${esc(d.rabbit_error)}</div>`
-    : rb.workers.map((w) => {
-        const b = d.busy[w];
-        const isNew = prev && !before.has(w);
-        return `<div class="worker ${b ? "busy" : ""} ${isNew ? "new" : ""}">
-          <div class="mono">${esc(w)}</div>
-          <div class="${b ? "c-TRANSCRIBING" : "muted"}">${b ? `job ${short(b.job_id)} · ${label(b.status || "")}` : "idle"}</div>
-          ${b && b.title ? `<div class="muted small">${esc(b.title)}</div>` : ""}
-        </div>`;
-      }).join("") || `<div class="muted">No workers connected</div>`;
+  // stage board
+  const lists = COLS.map(([, key]) => d.jobs.filter((j) => inCol(key, shown(j, now))));
+  // Stage columns get every unfinished job from the API; Done and Attention also count jobs older than the list.
+  const totals = COLS.map(([, key], i) => key === "DONE" ? (c.COMPLETED || 0) + (c.COMPLETED_WITH_WARNINGS || 0)
+    : key === "ATTN" ? lists[i].filter((j) => shown(j, now) === "WAITING").length + (c.FAILED || 0) + (c.DEAD_LETTERED || 0)
+    : lists[i].length);
+  document.querySelectorAll(".col").forEach((col, i) => {
+    const key = COLS[i][1], list = lists[i], n = totals[i], h = colHist[i];
+    push(h, n);
+    const before = h.length > 10 ? h[h.length - 11] : h[0], delta = n - before;
+    const cls = delta === 0 ? "fl" : key === "DONE" ? (delta > 0 ? "up" : "fl") : key === "QUEUED" || key === "ATTN" ? (delta > 0 ? "dn" : "up") : "fl";
+    put(col.querySelector("b"), String(n));
+    put(col.querySelector("em"), `<span class="${cls}">${delta > 0 ? "▲" : delta < 0 ? "▼" : "■"}${Math.abs(delta)}</span>`);
+    const path = col.querySelector("path");
+    path.setAttribute("d", spark(h, 150, 16).line);
+    path.setAttribute("stroke", key === "ATTN" ? "#ff4545" : key === "DONE" ? "#2fd46d" : "#62d2ff");
+    const ordered = key === "QUEUED" ? [...list].reverse()  // oldest queued job first: it's next in line
+      : key === "DONE" ? [...list].sort((a, b) => (b.finished_at || 0) - (a.finished_at || 0)) : list;
+    keyed(col.querySelector(".cards"), ordered.slice(0, CARD_LIMIT), (j) => j.job_id, (j) => {
+      const el = document.createElement("div");
+      const t = tone(shown(j, now));
+      // No flash on the first render; afterwards a new card means a job just entered this stage.
+      el.className = "card" + (!boardReady ? " nf" : t === "ok" ? " f-ok" : t === "bad" || t === "dead" ? " f-bad" : t === "warn" ? " f-warn" : "");
+      return el;
+    }, (el, j) => put(el, card(j, d, live)));
+    const visible = Math.min(list.length, CARD_LIMIT);
+    put(col.querySelector(".more"), n > visible ? `+${n - visible} more` : !n ? "—" : "");
+  });
+  boardReady = true;
 
-  $("jobs").innerHTML = d.jobs.map((j) => {
-    const active = !TERMINAL.has(j.status);
-    const waiting = active && j.retry_at && j.retry_at > now;
-    const orphan = active && j.worker && rb && !live.has(host(j.worker));
-    const badge = waiting ? "WAITING" : j.status;
+  // job blotter
+  put($("jn"), `${d.jobs.length} shown · ${d.totals ? d.totals.jobs : 0} in Redis`);
+  put($("jobs"), d.jobs.map((j) => {
+    const s = shown(j, now), t = tone(s);
+    const lost = !TERMINAL.has(j.status) && j.worker && rb && !live.has(host(j.worker));
     let detail = "";
-    if (waiting) detail = `retry in <b>${Math.ceil(j.retry_at - now)}s</b> · ${esc(j.last_error || "")}`;
-    else if (orphan) detail = `<span class="c-FAILED">worker ${esc(host(j.worker))} died, job will be redelivered</span>`;
+    if (s === "WAITING") detail = `<span class="s-warn">retry in ${Math.ceil(j.retry_at - now)}s · ${esc(j.last_error || "")}</span>`;
+    else if (lost) detail = `<span class="s-bad">worker ${esc(host(j.worker))} died, job will be redelivered</span>`;
     else if (j.notion_url) detail = `<a href="${esc(j.notion_url)}" target="_blank" rel="noopener">View in Notion ↗</a>`;
-    else if (j.error) detail = `<span class="c-${j.status}">${esc(j.error)}</span>`;
-    if (j.warnings) detail += ` · ${j.warnings} warning${j.warnings > 1 ? "s" : ""}`;
-    return `<tr>
-      <td class="mono">${short(j.job_id)}</td>
-      <td>${esc(j.title)}</td>
-      <td><span class="badge c-${badge}">${label(badge)}</span></td>
-      <td><div class="bar"><i style="width:${j.progress}%"></i></div></td>
-      <td>${j.attempt || "–"}</td>
-      <td class="mono">${esc(host(j.worker)) || "–"}</td>
-      <td>${detail}</td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="7" class="muted">No jobs yet</td></tr>`;
+    else if (j.error) detail = `<span class="s-${t}">${esc(j.error)}</span>`;
+    if (j.warnings) detail += ` <span class="s-warn">· ${j.warnings} warning${j.warnings > 1 ? "s" : ""}</span>`;
+    const took = j.finished_at ? `<span class="s-${t}">${dur(j.finished_at - j.created_at)}</span>`
+      : `<span class="s-idle">${s === "QUEUED" ? "–" : "running"}</span>`;
+    return `<tr><td>${short(j.job_id)}</td><td title="${esc(j.title)}">${esc((j.title || "").slice(0, 34))}</td><td class="s-${t}">${s}</td>
+      <td class="rt">${j.progress}%</td><td class="rt">${j.attempt || "–"}</td><td>${esc(host(j.worker)) || "–"}</td>
+      <td class="rt">${dur(now - j.created_at)}</td><td class="rt">${took}</td><td>${detail}</td></tr>`;
+  }).join("") || `<tr><td colspan="9" class="s-idle">No jobs yet</td></tr>`);
+
+  // workers
+  put($("wn"), rb ? `${rb.workers.length}/${d.scale.max}` : "unavailable");
+  put($("workers"), !rb ? `<tr><td colspan="4" class="s-bad">RabbitMQ API unreachable: ${esc(d.rabbit_error)}</td></tr>`
+    : rb.workers.map((w) => {
+        const b = d.busy[w], since = (rb.worker_since || {})[w];
+        return `<tr><td>${esc(w)}</td><td class="${b ? "s-run" : "s-idle"}">${b ? "BUSY" : "IDLE"}</td>
+          <td>${b ? `${short(b.job_id)} <span class="s-idle">${esc(label(b.status || ""))}</span>` : "–"}</td><td class="rt">${since ? dur(now - since) : "–"}</td></tr>`;
+      }).join("") || `<tr><td colspan="4" class="s-idle">No workers connected</td></tr>`);
+
+  // errors by code
+  const errs = Object.entries(d.errors || {}).sort((a, b) => b[1] - a[1]);
+  put($("errs"), errs.map(([code, n]) => `<tr><td class="s-warn">${esc(code)}</td><td class="rt">${n}</td></tr>`).join("")
+    || `<tr><td class="s-idle">No errors recorded</td></tr>`);
+
+  // footer totals
+  put($("foot"), `<span>AMQP 5672 · MGMT 15672 · REDIS 6379</span><span>JOBS ${d.totals ? d.totals.jobs : 0}</span>
+    <span class="s-ok">PUBLISHED ${(c.COMPLETED || 0) + (c.COMPLETED_WITH_WARNINGS || 0)}</span>
+    <span class="s-warn">RETRIES ${d.totals ? d.totals.retries : 0}</span><span class="s-bad">FAILED ${c.FAILED || 0}</span>
+    <span class="s-dead">DEAD ${c.DEAD_LETTERED || 0}</span>`);
 }
 
+// Turn the difference between two polls into ticker events.
 function diff(d) {
   const live = new Set(d.rabbit?.workers || []);
   if (prev) {
     if (prev.rabbit && d.rabbit) {
       const before = new Set(prev.rabbit.workers);
-      for (const w of live) if (!before.has(w)) addEvent(`Worker <b class="mono">${esc(w)}</b> joined`, "c-COMPLETED");
+      for (const w of live) if (!before.has(w)) addEvent(`Worker ${w} joined`, "ok");
       for (const w of before) if (!live.has(w)) {
         const b = prev.busy[w];
-        addEvent(`Worker <b class="mono">${esc(w)}</b> left` +
-          (b ? ` while holding job ${short(b.job_id)}; RabbitMQ will redeliver it` : ""), b ? "c-FAILED" : "muted");
+        addEvent(`Worker ${w} left` + (b ? ` while holding job ${short(b.job_id)}; RabbitMQ will redeliver it` : ""), b ? "bad" : "idle");
       }
     }
     const old = Object.fromEntries(prev.jobs.map((j) => [j.job_id, j]));
     for (const j of d.jobs) {
-      const o = old[j.job_id], id = `Job <b class="mono">${short(j.job_id)}</b>`;
-      if (!o) { addEvent(`${id} submitted · ${esc(j.title)}`); continue; }
-      if (o.status !== j.status) addEvent(`${id}: ${label(o.status)} → <span class="c-${j.status}">${label(j.status)}</span>`);
+      const o = old[j.job_id], id = `Job ${short(j.job_id)}`;
+      if (!o) { if (!TERMINAL.has(j.status)) addEvent(`${id} submitted · ${j.title || ""}`, "info"); continue; }
+      if (o.status !== j.status) addEvent(`${id}: ${label(o.status)} → ${label(j.status)}`, tone(j.status));
       if (j.retry_at && j.retry_at !== o.retry_at && j.retry_at > d.now)
-        addEvent(`${id}: ${esc(j.last_error || "error")}, retrying in ${Math.round(j.retry_at - d.now)}s (attempt ${j.attempt})`, "c-WAITING");
+        addEvent(`${id}: ${j.last_error || "error"}, retrying in ${Math.round(j.retry_at - d.now)}s (attempt ${j.attempt})`, "warn");
     }
   }
   for (const j of d.jobs) {
     const h = host(j.worker), was = lastOwner[j.job_id];
-    if (prev && h && was && was !== h && !live.has(was))
-      addEvent(`Job <b class="mono">${short(j.job_id)}</b> recovered by <b class="mono">${esc(h)}</b> after ${esc(was)} died`, "c-COMPLETED");
+    if (prev && h && was && was !== h && !live.has(was)) addEvent(`Job ${short(j.job_id)} recovered by ${h} after ${was} died`, "ok");
     if (h) lastOwner[j.job_id] = h;
   }
+}
+
+function renderTape() {
+  // Refresh occasionally so the scroll doesn't jump every second, but replace the placeholder right away.
+  const placeholder = $("track")._h && !renderTape.real;
+  if (polls - tapeAt < TAPE_EVERY && $("track")._h && !(placeholder && events.length)) return;
+  tapeAt = polls;
+  renderTape.real = events.length > 0;
+  const items = events.length ? events : [{ t: Date.now() / 1000, text: "Watching for changes. Events appear here as jobs move.", tone: "idle" }];
+  const seg = `<span class="seg">${items.slice(0, 16).map((e) => `<span class="s-${e.tone}">${clock(e.t)} ${esc(e.text).toUpperCase()}</span>`).join("")}</span>`;
+  put($("track"), seg + seg);
 }
 
 async function tick() {
@@ -197,14 +331,14 @@ async function tick() {
     const r = await fetch("/dashboard/data", { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
-    render(d);
     diff(d);
+    render(d);
     prev = d;
-    $("dot").className = "dot";
-    set("updated", "live · " + new Date().toLocaleTimeString());
-  } catch {
-    $("dot").className = "dot stale";
-    set("updated", "connection lost, retrying…");
+    polls++;
+    renderTape();
+  } catch (e) {
+    put($("status"), `<span class="bad">Connection to gateway lost, retrying…</span>`);
+    console.error(e);
   }
   setTimeout(tick, 1000);
 }

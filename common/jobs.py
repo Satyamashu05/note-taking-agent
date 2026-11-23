@@ -54,6 +54,8 @@ def update(job_id, **fields):
             fields[f] = json.dumps(fields[f])
     if "status" in fields and "progress" not in fields:
         fields["progress"] = 100 if fields["status"] in TERMINAL else PROGRESS[fields["status"]]
+    if fields.get("status") in TERMINAL:
+        fields.setdefault("finished_at", int(time.time()))
     r.hset(_key(job_id), mapping=fields)
 
 def is_done(job_id, stage):
